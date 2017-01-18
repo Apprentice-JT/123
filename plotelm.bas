@@ -38,7 +38,7 @@ DECLARE SUB EMSCLEAR ()
 DECLARE SUB AVRGTHETA (Theta!)
 DECLARE SUB SORT (N!, RA#(), AA#())
 DECLARE SUB INTELLI (XC1!, YC1!, THETA1!, ITYP1!, XC2!, YC2!, THETA2!, ITYP2!, Xi1!, Yi1!, Xi2!, Yi2!, PN1!, PN2!, IFLAG!)
-DECLARE SUB PLOTellipse (Xc!, Yc!, Theta!, Rad!, Ecc!, CLRL!)
+DECLARE ellipse (Xc!, Yc!, Theta!, Rad!, Ecc!, CLRL!)
 DECLARE SUB AssignGroupH (G$, SItems$(), Saddr!(), Aaddr!(), Scale!(), SNitems!)
 DECLARE SUB HIST (AR!(), AAr!(), Par$(), NA!, NS!, XYlim!(), XYscr!(), XYplt!(), Labl$(), Contr!())
 DECLARE SUB RetreveH (Paddress!, AR!(), AAr!(), Sc!, Cfile$, ADI!)
@@ -120,23 +120,27 @@ COMMON SHARED Ecc, DENSITY, NN, DELBOX, NXB, NYB, NDPART, NCPART, NBPART, ICOUNT
 COMMON SHARED IBPART, SHAPES(), R(), E(), NCONT, NBD, XMINA, YMINA, XMAXA, YMAXA, RAVER, RECMAX, RECHIS, RECPOL
 COMMON SHARED HA%, iBCONT&, fBCONT&, iCLIST&, fCLIST&, iDLIST&, fDLIST&
 COMMON SHARED BFLAG, DEBUG, NPOL, IADD, NADD, IPIPE, NPIPE, trackfl, BOX29, POLYSTYLE%, IGROUP, NGROUP, DPR
+COMMON SHARED RECMAXZZ, RECHISZZ, RECPOLZZ, CURFILE%, NOSTOP, AUT, GTERM$, KSEQ
 '
 DEF SEG = 0
 CLEAR , , 3600
-'Dfile$ = "EXX_01.BIN"
-'FOR I = 2 TO 3000
-'CALL MakeNext(Dfile$, NEWFILE)
-'LOCATE 6, 1: PRINT I, Dfile$, NEWFILE
-'WHILE INKEY$ = "": WEND
-'NEXT
 DIM Page$(25), Dat$(25, 10), Dat%(25)
+DIM Xar(1, 6000), Yar(1, 6000)
+'
+DIM Xa1(1, 6000), Ya1(1, 6000): DIM LBA1$(2)
+DIM Xa2(1, 6000), Ya2(1, 6000): DIM LBA2$(2)
+DIM Xa3(1, 6000), Ya3(1, 6000): DIM LBA3$(2)
+'
 CWD$ = UCASE$(COMMAND$)
 BFLAG = 0
 MOUSE% = 0: CALL Qmouse(MOUSE%, BT%, MX%, MY%)
-ndim = 1: MAKER = 0: TWOP = 8 * ATN(1!)
+ndim = 1: MAKER = 0: TWOP = 8 * ATN(1!): LASTBALL = 0
 '
 DIM XYlim(10), XYlimR(10), XYlimS(10), XYscr(10), XYplt(10), Contr(10), Labl$(30), Trans(4), Xmaker(10), XYout(10), Boxes(30), OPTIONS(30)
 DIM XYlimG(10), XYscrG(10), XYpltG(10), XYoutG(10), ContrG(10), LablG$(30)
+DIM XYlimF(10), XYscrF(10), XYpltF(10), XYoutF(10), ContrF(10), LablF$(30)
+DIM XYlimT(10), XYscrT(10), XYpltT(10), XYoutT(10), ContrT(10), LablT$(30)
+DIM XYscrZ(10)
 DIM T(40), E(40), R(40), Theta(320), ITP(320), SHAPES(40, 2)
 DIM ITEMS$(30)
 DIM RT(20), ET(20), TT(36), RDIST(20), RDISTI(20), EDIST(36), TDIST(36), TDISTI(36), TBLOCK(20), THBLOCK(20)
@@ -145,7 +149,7 @@ DIM THREM(1), PATRN(16), COORDC(16), NDIST(16)
 DIM Olist$(100), Hlist$(100)
 DIM LPMODE AS LONG
 REDIM BCT(0), SPLIT(0)
-NOBFILE = 0: Olist$(0) = "0": Hlist$(0) = "0"
+NOBFILE = 0: Olist$(0) = "0": Hlist$(0) = "0": SELITEMX$ = "": SELITEMY$ = ""
 ND = 36
 SMIN% = 0: CMIN% = 0: ASPECT = 0: ROIN% = 0
 '
@@ -158,8 +162,9 @@ WDMODE = INT(YSPMODE / 16)
 XDMODE = INT(XSPMODE / 8)
 SCREEN SPMODE
 _SCREENMOVE 0, 0
-_TITLE "PLOTELM"
+_TITLE "PLOTELS"
 XYlim(8) = XSPMODE: XYlim(9) = YSPMODE: XYlim(10) = SPMODE
+XYscrZ(1) = 0: XYscrZ(2) = 0: XYscrZ(3) = 0: XYscrZ(4) = 0
 '
 IBOX = 50
 ICALL = 0
@@ -172,7 +177,8 @@ PATRN(11) = 7
 PATRN(10) = 7
 PATRN(9) = 7
 '
-COORDC(1) = 15
+COORDC(0) = 8
+COORDC(1) = 8
 COORDC(2) = 15
 COORDC(3) = 10
 COORDC(4) = 13
@@ -188,10 +194,12 @@ COORDC(13) = 15
 COORDC(14) = 15
 COORDC(15) = 15
 '
-Cfile$ = "WT_0025.bin"
+Cfile$ = "CI_0001.bin"
 Dfile$ = "Plotels.csv"
+Lfile$ = ""
 REPRUN:
-NRmin = 1: NRmax = 7: NcMin = 18: NcMax = 79: NCOL% = 2: EFL = 0: Mes$ = "": WINDOW: VIEW: CLS
+NRmin = 1: NRmax = 8: NcMin = 18: NcMax = 79: NCOL% = 2: EFL = 0: Mes$ = "": WINDOW: VIEW: CLS
+AUT = 1
 Page$(1) = "Work Directory ->"
 IF CWD$ <> "" THEN
     Page$(1) = Page$(1) + CWD$
@@ -202,10 +210,19 @@ IF Cfile$ <> "" THEN
 END IF
 Page$(3) = "Trace file (T) ->EXTRACT.DA"
 Page$(4) = "Auto str (6+2) ->"
-Page$(5) = "Stop-wait (Y)  ->N"
-Page$(6) = "Print BMP (Y)  ->N"
-Page$(7) = "Generate PART  ->"
-
+Page$(5) = "Stop-wait  (Y) ->N"
+Page$(6) = "Make movie (Y) ->N"
+Page$(7) = "Plots (X - no) ->q/p-Et, Ev-Et, Fb-K, X"
+IF VAL(LablF$(30)) <> 0 THEN
+    Page$(8) = "Trace particle ->" + LablF$(30)
+ELSE
+    IF LASTBALL <> 0 THEN
+        Page$(8) = "Trace particle ->" + MID$(STR$(LASTBALL), 2)
+    ELSE
+        Page$(8) = "Trace particle ->0"
+    END IF
+END IF
+'
 SCREEN 12: WINDOW: VIEW: CLS
 FOR I% = 1 TO 25: Dat%(I%) = -1: Dat$(I%, 1) = "": Dat$(I%, 2) = "": NEXT I%
 CALL GetData(Page$(), Dat$(), Dat%(), NRmin, NRmax, NcMin, NcMax, EFL, Mes$)
@@ -243,9 +260,11 @@ NOBMP = 0
 IF Dat%(6) = 1 THEN
     IF UCASE$(Dat$(6, 1)) = "Y" THEN
         NOBMP = 1
+        BMPlist$ = CWD$ + "\" + "FLIST.TXT"
+        OPEN BMPlist$ FOR OUTPUT AS #5
     END IF
 END IF
-'
+
 NEWF:
 SCREEN 12: WINDOW: VIEW: CLS
 '
@@ -259,6 +278,7 @@ IF Cfile$ = "X" OR Cfile$ = "x" THEN
 ELSE
     Cfile$ = CWD$ + "\" + Cfile$
     Dfile$ = CWD$ + "\" + Dfile$
+    LNO = LEN(CWD$) + 2
     NOBFILE = 0
     CALL CHECKfile(Cfile$, NOBFILE)
     IF NOBFILE <> 0 THEN
@@ -268,14 +288,52 @@ ELSE
         GOTO REPRUN:
     END IF
 END IF
+
 '
-RESIZED = 0: Cfilei$ = Cfile$: NEWFILE = 1
+RESIZED = 0: Cfilei$ = Cfile$: NEWFILE = 1: GTERM$ = ""
 '
 NBOX = 6000: NBPART = 100: NFLP = 0
 CALL EMSALLOCATE(NDISK, NDPART, NBOX, NBPART, NCONT, NCPART)
-'
 ITMP$ = "": GP$ = ""
+NORSIDE = 1
+IF Dat%(7) <> 0 THEN
+    IF Dat%(7) = 4 AND UCASE$(Dat$(7, 4)) = "X" THEN
+        LBA1$(1) = "": LBA2$(1) = "": LBA3$(1) = ""
+    ELSE
+        CALL GraphsInfo(Cfile$, "2", "9", "1", "A", 0, 0)
+        CALL TRANSFER(1)
+        CALL GraphsInfo(Cfile$, "2", "9", "2", "8", 0, 0)
+        CALL TRANSFER(2)
+        CALL GraphsInfo(Cfile$, "0", "0", "8", "1", 0, 0)
+        CALL TRANSFER(3)
+        S$ = "Last file: " + Lfile$
+        L% = XDMODE - LEN(S$) - 5
+        S$ = S$ + STRING$(L%, " ")
+        LOCATE WDMODE, 6: PRINT S$;
+        NORSIDE = 0
+    END IF
+END IF
+IF Dat%(8) = 1 THEN
+    Pno = VAL(Dat$(8, 1))
+    LablF$(30) = MID$(STR$(Pno), 2)
+    LASTBALL = Pno
+    IF Pno <> 0 THEN
+        CALL GraphsInfo(Cfile$, "2", "9", "9", "7", Pno, 0)
+        CALL TRANSFER(0)
+        NORSIDE = 0
+    END IF
+END IF
 AGAINdisp:
+GG$ = INKEY$
+IF GG$ = CHR$(27) THEN
+    G$ = ""
+    AUT = 1
+END IF
+IF GTERM$ = "X" THEN
+    G$ = ""
+    GTERM$ = ""
+    AUT = 1
+END IF
 CALL INITfile(Cfile$)
 CALL INITP(XYlimR())
 IF KSEQ = -1 THEN
@@ -289,23 +347,42 @@ IF AUT = 0 THEN
     FOR I = 1 TO 4: XYlim(I) = XYlimS(I): NEXT
 END IF
 '
-CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
-'
 IF NEWFILE = 0 THEN
+    CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
     CALL PlotBalls(XYlim(), XYscr())
 ELSE
     CALL FillBoxes(XYlim(), XYscr(), RDIST(), RDISTI(), EDIST(), TDIST(), TDISTI())
+    IF AUT = 1 THEN
+        CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
+        CALL PlotBalls(XYlim(), XYscr())
+    ELSE
+        CALL DECODEG(G$, VVL)
+        IF VVL = 20 THEN
+            IF LASTBALL <> 0 THEN
+                LablF$(30) = MID$(STR$(LASTBALL), 2)
+            ELSE
+                AUT = 1
+                CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
+                CALL PlotBalls(XYlim(), XYscr())
+                ITEMS$(0) = "0": G$ = ""
+            END IF
+        END IF
+        IF VVL = 2 OR VVL = 16 THEN
+            CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
+            CALL PlotBalls(XYlim(), XYscr())
+        END IF
+    END IF
     NEWFILE = 0
 END IF
 '
 NITEMS = 26: BOX29 = 30
 ITEMS$(1) = "1 - Plot particles  "
-ITEMS$(2) = "2 - Plot forces     "
+ITEMS$(2) = "2 - Plot forces / A "
 ITEMS$(3) = "3 - Assign Boundary "
 ITEMS$(4) = "4 - Resize area     "
 ITEMS$(5) = "5 - Redu current    "
 ITEMS$(6) = "6 - Prev/Next file  "
-ITEMS$(7) = "7 - Links/Coordin   "
+ITEMS$(7) = "7 - Links-Coord / A "
 ITEMS$(8) = "8 - Start again     "
 ITEMS$(9) = "9 - Move particle   "
 ITEMS$(10) = "A - Rotations      "
@@ -314,11 +391,11 @@ ITEMS$(12) = "C - Delete particle"
 ITEMS$(13) = "D - Polygon groups "
 ITEMS$(14) = "E - Find two balls "
 ITEMS$(15) = "F - ASCII Part/Full"
-ITEMS$(16) = "G - Velocities     "
+ITEMS$(16) = "G - Velocities / A "
 ITEMS$(17) = "H - Graphs menu    "
 ITEMS$(18) = "I - Histograms menu"
 ITEMS$(19) = "J - Review contacts"
-ITEMS$(20) = "K - Balls+forces   "
+ITEMS$(20) = "K - FirstShell / A "
 ITEMS$(21) = "L - First file     "
 ITEMS$(22) = "M - Displacements  "
 ITEMS$(23) = "N - Summary  / CLS "
@@ -329,12 +406,6 @@ ITEMS$(27) = "R - First file     "
 '
 XYout(0) = 30
 '
-IF AUT <> 0 THEN
-    IF VAL(ITMP$) = 2 OR GP$ = "2" THEN
-        ITEMS$(0) = "2": G$ = "2"
-        GOTO ScpMenu
-    END IF
-END IF
 POLYSTYLE% = 0
 '
 MainPoll:
@@ -354,35 +425,80 @@ IF XYout(1) <> XYout(2) AND XYout(3) <> XYout(4) THEN
     NEWFILE = 1
     GOTO AGAINdisp
 END IF
+IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
+    Xs = XYout(1): Ys = XYout(3)
+    IF Xs > XYlim(1) AND Xs < XYlim(2) THEN
+        IF Ys > XYlim(3) AND Ys < XYlim(4) THEN
+            IF VAL(LablF$(30)) = 0 THEN
+                LablF$(30) = "-1"
+                G$ = "K"
+                ITEMS$(0) = "20"
+            ELSE
+                COLOR 2, 0
+                LOCATE 1, 6: PRINT "PARTICLE " + LablF$(30) + " IS CURRENT - ";
+                INPUT "REASSIGN TO INTERACTIVE ? (Y/N) "; IWHAT$
+                IF UCASE$(IWHAT$) = "Y" THEN
+                    LablF$(30) = "-1"
+                    G$ = "K"
+                    ITEMS$(0) = "20"
+                END IF
+                CALL CLEAN
+            END IF
+        END IF
+    END IF
+END IF
 '
 CALL MakeMenu(XYlim(), XYscr(), XYout(), Contr(), ITEMS$(), NITEMS, Boxes(), 1, OPTIONS(), G$)
 '************
 '
 ScpMenu:
 '
-NFL = 0: VVL = VAL(ITEMS$(0))
+VVL = VAL(ITEMS$(0))
+IF AUT = 1 THEN
+    IF VVL = 2 OR VVL = 7 OR VVL = 16 OR VVL = 20 THEN
+        G$ = "Q"
+    END IF
+END IF
+NFL = 0
 IF VVL < 0 THEN
     ITEMS$(0) = STR$(-VVL)
     NFL = 1
 END IF
 '
 IF VAL(ITEMS$(0)) = NITEMS OR G$ = "Q" THEN 'Exit
-    ITMP$ = ITEMS$(0): GP$ = G$
-    CLOSE
-    END
+    IF VAL(ITEMS$(0)) = NITEMS THEN NFL = 1
+    IF NFL = 1 THEN
+        ITMP$ = ITEMS$(0): GP$ = G$
+        CLOSE
+        END
+    ELSE
+        G$ = "!(6+" + MID$(ITEMS$(VVL), 1, 1) + ")"
+        AUT = 0: KSEQ = 1
+        NOSTOP = 0
+        CLOSE #1
+        WINDOW: VIEW: CLS
+        NEWFILE = 1
+        IF RESIZED = 1 THEN
+            FOR I = 1 TO 4: XYlimS(I) = XYlim(I): NEXT
+        ELSE
+            FOR I = 1 TO 4: XYlimS(I) = XYlimR(I): NEXT
+        END IF
+        GOTO AGAINdisp
+    END IF
 END IF
+'
 IF VAL(ITEMS$(0)) = NITEMS - 1 OR G$ = "P" THEN 'Print ON
     ITMP$ = ITEMS$(0): GP$ = G$
     Contr(3) = 1
     OPTIONS(NITEMS - 1) = 1
     GOTO MainPoll
-    END
 END IF
 IF VAL(ITEMS$(0)) = 1 OR G$ = "1" THEN 'Plot BALLS
     ITMP$ = ITEMS$(0): GP$ = G$
     IF Contr(3) <> 0 THEN
         CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
     END IF
+    CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
     CALL PlotBalls(XYlim(), XYscr())
     IF Xmaker(0) = -1 THEN
         PRINT #3, "showpage"
@@ -397,8 +513,8 @@ IF VAL(ITEMS$(0)) = 2 OR G$ = "2" THEN 'Plot FORCES
     END IF
     CALL PlotFORCES(XYlim(), XYscr(), XYout(), Contr())
     IF Contr(3) <> 0 THEN CLOSE #3
-    WHILE INKEY$ = "": WEND
 END IF
+
 '************
 IF VAL(ITEMS$(0)) = 3 OR G$ = "3" THEN 'Assign Boundary
     ITMP$ = ITEMS$(0): GP$ = G$
@@ -439,13 +555,13 @@ IF ABS(VAL(ITEMS$(0))) = 6 OR G$ = "6" THEN 'Next File
         N = INSTR(1, Cfile$, "."): Bfile$ = MID$(Cfile$, 1, N - 1)
         CALL MakeFstring(KSEQ, KSQ$)
         Bfile$ = CWD$ + "\" + KSQ$
-        CALL SaveImage(LPMODE, Bfile$, XYscr())
-        KSEQ = KSEQ + 1
-    END IF
-    IF NOSTOP = 1 THEN
-        WHILE INKEY$ = "": WEND
-    ELSE
-        SLEEP 2
+        CALL DECODEG(G$, VVX)
+        IF NORIGHT = 1 THEN
+            CALL SaveImage(LPMODE, Bfile$, XYscrS())
+        ELSE
+            CALL SaveImage(LPMODE, Bfile$, XYscrZ())
+        END IF
+        PRINT #5, Bfile$ + ".BMP"
     END IF
     Sfile$ = Cfile$
     NFLP = NFL
@@ -464,18 +580,49 @@ IF ABS(VAL(ITEMS$(0))) = 6 OR G$ = "6" THEN 'Next File
     IF NOBFILE = 0 THEN
         CLOSE #1
         WINDOW: VIEW: CLS
-        LOCATE 1, 6: PRINT Cfile$;
+        KSEQ = KSEQ + 1
+        LOCATE 1, 6: PRINT Cfile$
         GOTO AGAINdisp
     ELSE
+        LOCATE WDMODE, 1: PRINT STRING$(XDMODE, " ");
         LOCATE WDMODE, 6: PRINT "Last file "; Sfile$; "...";
         Cfile$ = Sfile$
         CLOSE #1
-        WHILE INKEY$ = "": WEND
-        IF Dat%(4) <> 0 THEN
+        CALL DECODEG(G$, VVX)
+        IF NOBMP = 1 THEN
+            CLOSE #5
+            NOBMP = 0
+            FLM$ = ""
+            IF VVX = 2 THEN FLM$ = "M2.GIF"
+            IF VVX = 16 THEN FLM$ = "MG.GIF"
+            IF VVX = 7 THEN FLM$ = "M7.GIF"
+            IF VVX = 20 THEN
+                FLM$ = "B" + LablF$(30) + ".GIF"
+            END IF
+            AUT = 1
+            IF FLM$ <> "" THEN
+                BTFILE$ = CWD$ + "\MOVIE.BAT"
+                OPEN BTFILE$ FOR OUTPUT AS #5
+                S$ = "CONVERT " + CHR$(64) + BMPlist$ + " " + CWD$ + "\" + FLM$
+                PRINT #5, S$
+                CLOSE #5
+                S$ = "CALL " + BTFILE$
+                SHELL (S$)
+            END IF
+            Cfile$ = Cfilei$
             CALL STRIPDIR(Cfile$)
             GOTO REPRUN:
         END IF
-        GOTO AGAINdisp
+        IF VVX = 2 OR VVX = 7 OR VVX = 20 OR VVX = 16 THEN
+            WHILE INKEY$ = "": WEND
+            ITEMS$(0) = "1": G$ = "1"
+            NEWFILE = 0
+            AUT = 1
+            WINDOW: VIEW: CLS
+            Cfile$ = Cfilei$
+            'CALL STRIPDIR(Cfile$)
+            GOTO AGAINdisp
+        END IF
     END IF
 END IF
 '************
@@ -558,11 +705,41 @@ IF VAL(ITEMS$(0)) = 16 OR G$ = "G" THEN 'Velocities
     IF Contr(3) <> 0 THEN
         CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
     END IF
-    CALL VELS(XYlim(), XYscr(), XYplt(), XYout(), Contr())
+    IFORD = 0
+    '
+    Sfile$ = Cfile$
+    NEWFILE = 0
+    CALL MakeNext(Sfile$, NEWFILE)
+    IF NEWFILE = 1 THEN
+        NOBFILE = 0
+        CALL CHECKfile(Sfile$, NOBFILE)
+    END IF
+    IF NOBFILE = 0 THEN
+        Ln$ = "Using Forward " + Sfile$
+        IFORD = 1
+    ELSE
+        NEWFILE = 0
+        Sfile$ = Cfile$
+        CALL MakePrev(Sfile$, NEWFILE)
+        IF NEWFILE = 1 THEN
+            NOBFILE = 0
+            CALL CHECKfile(Sfile$, NOBFILE)
+            IF NOBFILE = 0 THEN
+                Ln$ = "Using Backward " + Sfile$
+                IFORD = 2
+            END IF
+        END IF
+    END IF
+    CALL INITfileZZ(Sfile$)
+    'CALL VELS(XYlim(), XYscr(), XYplt(), XYout(), Contr())
+    CALL PlotVELOCITY(XYlim(), XYscr(), XYplt(), XYout(), Contr(), IFORD, CLR, DEt)
+    Ln$ = Ln$ + " (DEt= " + STR$(DEt) + ")"
+    LOCATE 1, 6: PRINT Ln$;
     IF Contr(3) <> 0 THEN CLOSE #3
 END IF
 
 IF VAL(ITEMS$(0)) = 17 OR G$ = "H" THEN 'Graphs Menu
+    Cfile$ = Cfilei$
     ITMP$ = ITEMS$(0): GP$ = G$
     FOR I = 1 TO 10: XYlimG(I) = XYlim(I): XYscrG(I) = XYscr(I): NEXT
     CALL Graphs(XYlimG(), XYscrG(), XYpltG(), XYoutG(), ContrG(), LablG$(), Cfile$, Dfile$)
@@ -587,15 +764,18 @@ IF VAL(ITEMS$(0)) = 19 OR G$ = "J" THEN 'Initialize
     WINDOW: VIEW (0, 0)-(XYscr(2), 479): CLS: VIEW
     CALL ReviewContacts
 END IF
-IF VAL(ITEMS$(0)) = 20 OR G$ = "K" THEN 'Plot BALLS+FORCES
+IF VAL(ITEMS$(0)) = 20 OR G$ = "K" THEN 'First shell
     ITMP$ = ITEMS$(0): GP$ = G$
     IF Contr(3) <> 0 THEN
         CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
     END IF
-    CALL PlotBalls(XYlim(), XYscr())
-    CALL PlotFORCES(XYlim(), XYscr(), XYout(), Contr())
+    CALL FirstShell(XYlim(), XYscr(), XYplt(), XYout(), Labl$(), Contr())
     IF Contr(3) <> 0 THEN CLOSE #3
+    IF AUT = 1 THEN
+        ITEMS$(0) = "": G$ = ""
+    END IF
 END IF
+
 IF VAL(ITEMS$(0)) = 21 OR G$ = "L" THEN 'New file
     CLOSE #1
     CALL MakeFirsFile(Cfile$)
@@ -619,7 +799,7 @@ IF VAL(ITEMS$(0)) = 23 OR G$ = "N" THEN 'Summary
     ELSE
         ITMP$ = ITEMS$(0): GP$ = G$
         PPOS = RECMAX
-        CALL SUMMARY(1, PPOS, Cfile$, XYscr())
+        CALL SUMMARY(1, PPOS, Cfile$)
         CLOSE #1
         WINDOW: VIEW: CLS
         NEWFILE = 1
@@ -647,9 +827,14 @@ GOTO MainPoll
 '    File error handler
 '
 NOFILE:
+IF NOBFILE = 22 THEN
+    LOCATE 12, 1: PRINT "22", ERR
+    WHILE INKEY$ = "": WEND
+END IF
 IF ERR = 53 OR ERR = 64 THEN
     CLOSE #9
     NOBFILE = 1
+
     RESUME NEXT
 ELSE
     IF ERR = 71 THEN RESUME NEXT
@@ -666,6 +851,13 @@ FUNCTION AA (I)
 CALL READNUM(I, Z$)
 CC# = CVD(Z$)
 AA = CC#
+END FUNCTION
+
+REM $STATIC
+FUNCTION ZZ (I)
+CALL READNUMZZ(I, Z$)
+CC# = CVD(Z$)
+ZZ = CC#
 END FUNCTION
 
 SUB AAI (PS1, VL)
@@ -888,18 +1080,32 @@ NBL = 0
 NHT = 1
 NGP = 1
 IF K = 0 THEN
+    ' G$ = 5   - Use group 5
+    ' G$=-567  - Ball 567 in group N=9
     N = VAL(G$)
     IF N < 0 THEN
         NBL = -N
         N = 9
     END IF
 ELSE
+    ' G$=!-5 means use histogram 5 with default group 1
+    ' G$=!18 means use group 18 with default hisogram 1
+    ' N=7 group selected
+    IF LEN(SItems$(1)) > 12 THEN
+        NHT = VAL(MID$(SItems$(1), 12))
+    ELSE
+        NHT = 1
+    END IF
+    IF LEN(SItems$(2)) > 12 THEN
+        NGP = VAL(MID$(SItems$(2), 12))
+    ELSE
+        NGP = 1
+    END IF
     G$ = MID$(G$, 1, K - 1)
     N = VAL(G$)
     IF N < 0 THEN
         NHT = -N
     ELSE
-        NHTr = NHT
         NGP = N
     END IF
     N = 7
@@ -951,12 +1157,13 @@ IF N = 3 THEN
     SItems$(4) = "4 - Ob      ": Sname$(4) = "Contact normal": Saddr(4) = 4: Scale(4) = 1!
     SItems$(5) = "5 - Coord   ": Sname$(5) = "Gamma": Saddr(5) = 0: Scale(5) = 1!
     SItems$(6) = "6 - Density ": Sname$(6) = "PakRo": Saddr(6) = 0: Scale(6) = 1!
-    SItems$(7) = "7 - Sli Cont": Sname$(7) = "NSLI": Saddr(7) = 0: Scale(7) = 1!
-    SItems$(8) = "8 - Cre Cont": Sname$(8) = "XCRE": Saddr(8) = 0: Scale(8) = 1!
-    SItems$(9) = "9 - Des Cont": Sname$(9) = "XDES": Saddr(9) = 0: Scale(9) = 1!
-    SItems$(10) = "10- Print ON": Sname$(10) = "    ": Saddr(10) = 0: Scale(10) = 1!
-    SItems$(11) = "11- Exit    ": Sname$(11) = "    ": Saddr(11) = 0: Scale(11) = 1!
-    SNitems = 11
+    SItems$(7) = "7 - Coord_Fl": Sname$(7) = "GammaFl": Saddr(7) = 0: Scale(7) = 1!
+    SItems$(8) = "8 - Floaters": Sname$(8) = "NFLOAT": Saddr(8) = 0: Scale(8) = 1!
+    SItems$(9) = "9 - Cre Cont": Sname$(9) = "XCRE": Saddr(9) = 0: Scale(9) = 1!
+    SItems$(10) = "10 - Des Cont": Sname$(10) = "XDES": Saddr(10) = 0: Scale(10) = 1!
+    SItems$(11) = "11- Print ON": Sname$(11) = "    ": Saddr(11) = 0: Scale(11) = 1!
+    SItems$(12) = "12- Exit    ": Sname$(12) = "    ": Saddr(12) = 0: Scale(12) = 1!
+    SNitems = 12
 END IF
 IF N = 4 THEN
     HistNo = 5
@@ -1034,17 +1241,24 @@ IF N = 9 THEN
     NBLr = NBL
     SItems$(1) = "1 - Xdisp   ": Saddr(1) = 0: Scale(1) = NBL
     SItems$(2) = "2 - Ydisp   ": Saddr(2) = 1: Scale(2) = NBL
-    SItems$(3) = "3 - XYdis  ": Saddr(3) = -1: Scale(3) = NBL
+    SItems$(3) = "3 - XYdis   ": Saddr(3) = -1: Scale(3) = NBL
     SItems$(4) = "4 - Theta   ": Saddr(4) = 10: Scale(4) = NBL
+    SItems$(5) = "5 - FXunb   ": Saddr(5) = 5: Scale(5) = NBL
+    SItems$(6) = "6 - FYunb   ": Saddr(6) = 6: Scale(6) = NBL
+    SItems$(7) = "7 - FFunb   ": Saddr(7) = -6: Scale(7) = NBL
+    SItems$(8) = "8 - MZunb   ": Saddr(8) = 7: Scale(8) = NBL
+    SItems$(9) = "9 - VXbal   ": Saddr(9) = 2: Scale(9) = NBL
+    SItems$(10) = "A - VYbal  ": Saddr(10) = 3: Scale(10) = NBL
+    SItems$(11) = "B- VVbal  ": Saddr(11) = -3: Scale(11) = NBL
     IF NBL = 0 THEN
-        SItems$(5) = "5 - Ball No ": Saddr(5) = 0: Scale(5) = 0
+        SItems$(12) = "C - Ball No ": Saddr(12) = 0: Scale(12) = 0
     ELSE
-        SItems$(5) = "Ball " + STR$(NBLr): Saddr(5) = 0: Scale(5) = NBL
+        SItems$(12) = "Ball " + STR$(NBLr): Saddr(12) = 0: Scale(12) = NBL
     END IF
-    SItems$(6) = "6 - ThetaAv ": Saddr(5) = -999: Scale(5) = 1!
-    SItems$(7) = "7 - Print ON": Saddr(6) = 0: Scale(6) = 1!
-    SItems$(8) = "8 - Exit    ": Saddr(7) = 0: Scale(7) = 1!
-    SNitems = 8
+    SItems$(13) = "C- ThetaAv ": Saddr(13) = -999: Scale(13) = 1!
+    SItems$(14) = "D- Print ON": Saddr(14) = 0: Scale(14) = 1!
+    SItems$(15) = "E- Exit    ": Saddr(15) = 0: Scale(15) = 1!
+    SNitems = 15
 END IF
 '      A(122)=FX
 '      A(123)=FY
@@ -1139,12 +1353,12 @@ IF G$ = CHR$(27) THEN
 END IF
 DOSEARCH:
 IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
-    Xo = XYout(1): Yo = XYout(3)
+    Xo = XYout(1): Yo = XYout(3): IBTYP1 = 0
     CALL SearchBALL(Xo, Yo, THETA1, N, XC1, YC1, ITYPE1, IBTYP1, FOUND)
     IF FOUND = 0 GOTO REPINFO
     BPinfo:
-    IADFOUND = M1 + (FOUND - 1) * NDPART
-    IAD = IADFOUND
+    IABFOUND = M1 + (FOUND - 1) * NDPART
+    IAD = IABFOUND
     CALL PLOTELS(XC1, YC1, THETA1, ITYPE1, IBTYP1, 15)
     IF ITYPE1 < 0 THEN
         RBAR1 = -ITYPE1
@@ -1158,15 +1372,15 @@ IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
         CMIN = CMIN + INT(0.5 * (XDMODE - CMAX))
     END IF
     VIEW (SLMIN, 0)-(XSPMODE - 1, YSPMODE - 1): CLS
-    VIEW (XYscr(1), XYscr(3))-(XYscr(2), XYscr(4))
+    VIEW (XYscr(1), XYscr(3))-(XYscr(2), XYscr(4)) '
     '
-    LOCATE 1, 6: PRINT USING "Particle ##### Addr ###### Type ###.### Bound ##"; FOUND; IADFOUND; AA(IAD + 9); AA(IAD + 8)
-    LOCATE 1, CMIN: PRINT USING "Xo=####.### Dx=#.##^^^^"; AA(IAD + 0); AA(IAD + 11)
-    LOCATE 2, CMIN: PRINT USING "Yo=####.### Dy=#.##^^^^"; AA(IAD + 1); AA(IAD + 12)
-    LOCATE 3, CMIN: PRINT USING "To=##.##### Dt=#.##^^^^"; AA(IAD + 10); AA(IAD + 13)
-    LOCATE 4, CMIN: PRINT USING "Vx=####.### Fx=#.##^^^^"; AA(IAD + 2); AA(IAD + 5)
-    LOCATE 5, CMIN: PRINT USING "Vy=####.### Fy=#.##^^^^"; AA(IAD + 3); AA(IAD + 6)
-    LOCATE 6, CMIN: PRINT USING "Vt=##.##### Mt=#.##^^^^"; AA(IAD + 4); AA(IAD + 7)
+    LOCATE 1, 6: PRINT USING "Particle ##### Addr ###### Type ###.### Bound ##"; FOUND; IABFOUND; AA(IAD + 9); AA(IAD + 8)
+    LOCATE 2, CMIN: PRINT USING "Xc=####.###### Fx=#.#####^^^^"; (AA(IAD + 0) + AA(IAD + 11)); AA(IAD + 5)
+    LOCATE 3, CMIN: PRINT USING "Yc=####.###### Fy=#.#####^^^^"; (AA(IAD + 1) + AA(IAD + 12)); AA(IAD + 6)
+    LOCATE 4, CMIN: PRINT USING "To=###.####### Mt=#.#####^^^^"; (AA(IAD + 10) + AA(IAD + 13)); AA(IAD + 7)
+    LOCATE 5, CMIN: PRINT USING "Vx=#.#####^^^^ Vy=#.#####^^^^"; AA(IAD + 2); AA(IAD + 3)
+    LOCATE 6, CMIN: PRINT USING "Vv=#.#####^^^^ Ff=#.#####^^^^"; SQR(AA(IAD + 2) ^ 2 + AA(IAD + 3) ^ 2); SQR(AA(IAD + 5) ^ 2 + AA(IAD + 6) ^ 2)
+    '
     NC = 0: KN = 0: WID = 3.5 * RBAR1
     WINDOW: VIEW
     FOR I% = 0 TO 10
@@ -1183,7 +1397,7 @@ IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
     XYscrP(1) = XYscrL(1): XYscrP(2) = XYscrL(2)
     XYscrP(3) = XYscrL(3):
     LablL$(1) = "X": LablL$(2) = "X"
-    ContrL(1) = -1
+    'ContrL(1) = -1
     CALL WIN(XYlimL(), XYscrL(), XYpltL(), LablL$(), ContrL())
     CALL PLOTELS(XC1, YC1, THETA1, ITYPE1, IBTYP1, 15)
     XYscrP(4) = XYscrL(3) - XYscrP(2) - 48
@@ -1207,7 +1421,7 @@ IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
     G$ = INKEY$
     IF G$ = CHR$(27) GOTO ContFin
     KF = 0
-    IF IB1 = IADFOUND THEN
+    IF IB1 = IABFOUND THEN
         KF = 1
         KN = KN + 1
         NEIGH(KN) = IB2
@@ -1215,7 +1429,7 @@ IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
         IADCONT(KN) = IAD
         CALL GETDISC(-IB2, XC2, YC2, THETA2, ITYPE2, IBTYP2)
     END IF
-    IF IB2 = IADFOUND THEN
+    IF IB2 = IABFOUND THEN
         KF = 1
         KN = KN + 1
         NEIGH(KN) = IB1
@@ -1273,7 +1487,7 @@ AMU, XYCN())
     WID = WINWX
     IF WINWY < WID THEN WID = WINWY
     KN1 = KN + 1
-    IF KN > 1 THEN
+    IF KN > 2 THEN
         XY(0) = KN1
         XY(1) = 0: XY(2) = 0
         CALL Cg(XY(), Xg, Yg, Area)
@@ -1780,6 +1994,25 @@ SUB Cg (XY(), Xg, Yg, Areax) STATIC
 DIM Dx(20000), Dy(20000), DP(20000), Rxx(20000), Ryy(20000), Rx(20000), Ry(20000)
 DTR = 3.1415926# / 180
 K = ABS(XY(0))
+IF K <= 2 THEN
+    IF K = 1 THEN
+        Xg = XY(1)
+        Yg = XY(2): Area = 0
+        EXIT SUB
+    END IF
+    IF K = 2 THEN
+        Xg = 0.5 * (XY(1) + XY(3))
+        Yg = 0.5 * (XY(2) + XY(4))
+        Area = 0
+        EXIT SUB
+    END IF
+    IF K = 3 THEN
+        Xg = (XY(1) + XY(3) + XY(5)) / 3
+        Yg = (XY(2) + XY(4) + XY(6)) / 3
+        Area = 0
+        EXIT SUB
+    END IF
+END IF
 FOR I% = 1 TO K
     N1% = I%: N2% = I% + 1: IF N2% > K THEN N2% = 1
     Dx(I%) = XY(2 * N2% - 1) - XY(2 * N1% - 1)
@@ -2576,11 +2809,11 @@ FOR N = 1 TO NDISK
     IF Xc > Xmin AND Xc < Xmax AND Yc > Ymin AND Yc < Ymax THEN
         IF IBTYP <> 0 THEN
             NBD = NBD + 1
-            CLR = 13
-        ELSE
-            CLR = 10
+            '      CLR = 13
+            '  ELSE
+            '     CLR = 10
         END IF
-        CALL PLOTELS(Xc, Yc, Tc, ITYPE, IBTYP, CLR)
+        'CALL PLOTELS(Xc, Yc, Tc, ITYPE, IBTYP, CLR)
     END IF
     CALL BOX(Xc, Yc, RR, Ecc, NBSAV(), NBMAP, SPLIT())
     FOR K = 1 TO NBMAP
@@ -2590,7 +2823,7 @@ FOR N = 1 TO NDISK
         CALL BCONTI(NB, NP, N)
     NEXT
 NEXT
-CALL BORDER(XYlim(), XYscr())
+'CALL BORDER(XYlim(), XYscr())
 ERASE NBSAV, SPLIT
 END SUB
 
@@ -3682,10 +3915,35 @@ ELSE
         ISEQ = N - NDISK
         IF ISEQ <= IADD THEN
             KD = NADD + (ISEQ - 1) * 7
-            Xc = AA(KD + 1)
-            Yc = AA(KD + 2)
-            Dx = AA(KD + 3)
-            Dy = AA(KD + 4)
+            IBB = AA(KD + 5)
+            CALL GETDISC(-IBB, Xc, Yc, Tc, ITYPE, IBTYP)
+        END IF
+    END IF
+END IF
+END SUB
+
+SUB GETDISZ (N, Xc, Yc, Tc, ITYPE, IBTYP)
+IF N <= NDISK THEN
+    IF N < 0 THEN
+        IAD = -N
+    ELSE
+        IAD = M1 + (N - 1) * NDPART
+    END IF
+    Xc = ZZ(IAD) + ZZ(IAD + 11)
+    Yc = ZZ(IAD + 1) + ZZ(IAD + 12)
+    Tc = ZZ(IAD + 10) + ZZ(IAD + 13)
+    IBTYP = ZZ(IAD + 8)
+    ITYPE = ZZ(IAD + 9)
+ELSE
+    IADD = ZZ(30)
+    IF IADD <> 0 THEN
+        ISEQ = N - NDISK
+        IF ISEQ <= IADD THEN
+            KD = NADD + (ISEQ - 1) * 7
+            Xc = ZZ(KD + 1)
+            Yc = ZZ(KD + 2)
+            Dx = ZZ(KD + 3)
+            Dy = ZZ(KD + 4)
             RBAR = 0.5 * (Dx * Dx + Dy * Dy)
             ITYPE = -RBAR
             Tc = ATAN2(Dy, Dx)
@@ -3712,16 +3970,17 @@ SUB GetLinks (N)
 END SUB
 
 SUB Graphs (XYlimG(), XYscrG(), XYpltG(), XYoutG(), ContrG(), LablG$(), Cfile$, Dfile$)
-SHARED Olist$(), Hlist$(), RECMAX
+SHARED Olist$(), Hlist$(), RECMAX, LASTBALL
+SHARED XYlimF(), XYscrF(), XYpltF(), XYoutF(), ContrF(), LablF$()
 DIM Boxes(30), OPTIONS(30), ITEMS$(30)
 DIM SBoxes(30), SOPTIONS(30), SItems$(30)
 DIM Saddr(30), Sname$(30), Par$(10), Scale(30)
-DIM Xar(1, 6000), Yar(1, 6000)
+SHARED Xar(), Yar()
 DIM XYlimR(10), XYscrR(10), XYpltR(10), XYoutR(10), ContrR(10), LablR$(10)
 SHARED NOBFILE, XSPMODE, YSPMODE, SPMODE, WDMODE
 IF VAL(Olist$(0)) = 0 THEN
     PPOS = RECMAX
-    CALL SUMMARY(0, PPOS, Cfile$, XYscrG())
+    CALL SUMMARY(0, PPOS, Cfile$)
     KV = VAL(Olist$(0))
 END IF
 IF VAL(Hlist$(0)) = 0 THEN
@@ -3769,6 +4028,15 @@ IF VAL(S$) = NITEMS THEN
     WINDOW: VIEW: CLS
     EXIT SUB
 END IF
+IF VAL(G$) = 9 THEN
+    IF VAL(LablF$(30)) <> 0 THEN
+        G$ = "-" + LablF$(30)
+    ELSE
+        IF LASTBALL <> 0 THEN
+            G$ = STR$(-LASTBALL)
+        END IF
+    END IF
+END IF
 '
 CALL AssignGroup(G$, SItems$(), Sname$(), Saddr(), Scale(), SNitems)
 '
@@ -3801,9 +4069,10 @@ ELSE
     SN$ = Sname$(N): PaddressY = Saddr(N): Sc = Scale(N)
     NewYLoc = 0: HistNoY = 0
     IF NSG = 9 THEN
-        IF NSGG = 5 THEN
+        IF NSGG = 12 THEN
             LOCATE 1, 6: INPUT "Ball No "; NBL
             LOCATE 1, 6: PRINT STRING$(74, " ");
+            LablF$(30) = MID$(STR$(NBL), 2)
             G$ = STR$(-NBL)
             CALL AssignGroup(G$, SItems$(), Sname$(), Saddr(), Scale(), SNitems)
             GOTO SMainPollG
@@ -3876,7 +4145,7 @@ ELSE
     IF OPTIONS(NITEMS - 1) = 1 THEN
         NewXLoc = NewYLoc
         Xaddress = PaddressY
-        HistNoX = HistNo
+        HistNoX = HistNoY
         OPTIONS(NITEMS - 1) = 0
         Lx$ = Sname$(N)
         GOTO MainPollG
@@ -3886,7 +4155,7 @@ ELSE
     NOBFILE = 0
     WINDOW: VIEW
     VIEW (0, 0)-(XYscrG(2) + 8, YSPMODE - 1): CLS: VIEW
-    CALL Retreve(PaddressY, HistNoY, Xar(), Yar(), Sc, Cfile$, Xaddress, HistNoX, SCX, NewXLoc, NewYLoc)
+    CALL Retreve(PaddressY, HistNoY, NewYLoc, Sc, Xaddress, HistNoX, NewXLoc, SCX, Xar(), Yar(), Cfile$)
     NS = 1
     Ly$ = SItems$(N)
     K% = INSTR(1, Ly$, "-")
@@ -3901,19 +4170,17 @@ ELSE
         ContrR(I) = ContrR(I)
         LablR$(I) = LablG$(I)
     NEXT
+    XYscrG(1) = 0: XYscrG(2) = 0: KSEQR = KSEQ: KSEQ = -2
     CALL PLOT(Xar(), Yar(), Par$(), NA, NS, XYlimG(), XYscrG(), XYpltG(), LablG$(), ContrG())
+    KSEQ = KSEQR
+    LablF$(1) = LablG$(1): LablF$(2) = LablG$(2)
+    XYlimF(1) = XYlimG(1): XYlimF(2) = XYlimG(2)
+    XYlimF(3) = XYlimG(3): XYlimF(4) = XYlimG(4)
     C$ = LablG$(0): LablG$(0) = Cfile$
     CALL LastFile(Dfile$)
     CALL SaveData(Dfile$, Xar(), Yar(), Par$(), LablG$())
+    CALL SaveDataExt(Dfile$, Xar(), Yar(), Par$(), LablG$())
     LablG$(0) = C$
-    FOR I = 1 TO 10
-        'XYlimG(I) = XYlimR(I)
-        'XYscrG(I) = XYscrR(I)
-        'XYpltG(I) = XYpltR(I)
-        'XYoutG(I) = XYoutR(I)
-        'ContrG(I) = ContrR(I)
-        'LablG$(I) = LablG$(I)
-    NEXT
     LablG$(0) = ""
     XYoutG(1) = .5 * (XYlimG(1) + XYlimG(2)): XYoutG(2) = XYoutG(1)
     XYoutG(3) = .5 * (XYlimG(3) + XYlimG(4)): XYoutG(4) = XYoutG(3)
@@ -4455,14 +4722,47 @@ END FUNCTION
 
 SUB INITfile (Cfile$)
 SHARED RNP, FW%, LNW%, FLD$
+SHARED Xar(), Yar()
 RNP = 1234567
 FW% = 80
 LNW% = 8
 OPEN Cfile$ FOR RANDOM AS #1 LEN = FW%
 FIELD #1, 80 AS FLD$
+M1 = AA(1)
+NDPART = AA(17)
+NCPART = AA(18)
 RECMAX = AA(20)
 RECHIS = AA(27)
 RECPOL = AA(28)
+RECET = RECMAX + 2 * (24 - 1) + 1
+RECEV = RECMAX + 2 * (25 - 1) + 1
+RECSF = RECMAX + 2 * (37 - 1) + 1
+'
+N1 = INSTR(1, Cfile$, "_")
+IF N1 = 0 THEN
+    N1 = INSTR(1, Cfile$, "-")
+    IF N1 = 0 THEN
+        N1 = INSTR(1, Cfile$, "+")
+    END IF
+END IF
+N2 = INSTR(1, Cfile$, ".")
+IF N2 - N1 - 1 > 2 THEN
+    L = N2 - N1 - 1
+    VS$ = MID$(Cfile$, N1 + 1, L)
+    CURFILE% = VAL(VS$)
+END IF
+END SUB
+
+SUB INITfileZZ (Zfile$)
+SHARED RNZ, FW%, LNW%, FLZ$
+RNP = 1234567
+FW% = 80
+LNW% = 8
+OPEN Zfile$ FOR RANDOM AS #6 LEN = FW%
+FIELD #6, 80 AS FLZ$
+RECMAXZZ = ZZ(20)
+RECHISZZ = ZZ(27)
+RECPOLZZ = ZZ(28)
 END SUB
 
 SUB NEWBINFILE (Nfile$)
@@ -5960,6 +6260,7 @@ Xshift = Xoff - Coefx * Xmin
 Yshift = Ylas - Coefy * Ymin
 IF AXREV THEN Coefy = -Coefy: Yshift = Yoff - Coefy * Ymin
 IF OPER = 0 THEN
+    IF AUT = 0 THEN EXIT SUB
     IF Boxes(BOX29) = 0 THEN WINDOW: VIEW
     VIEW (Xlas + 24, 0)-(XSPMODE - 1, Ylas - 16): CLS: VIEW
     Rmin% = INT(Yoff / CLEN) + 1: Rmax% = INT(Ylas / CLEN) + 1: RIN% = Rmin%
@@ -6240,7 +6541,7 @@ IF G$ = CHR$(27) THEN
     EXIT SUB
 END IF
 IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
-    Xo = XYout(1): Yo = XYout(3)
+    Xo = XYout(1): Yo = XYout(3): IBTYP = 0
     CALL SearchBALL(Xo, Yo, Tc, N, Xc, Yc, ITYPE, IBTYP, FOUND)
     IF FOUND <> 0 THEN
         xmark = xmark + 1
@@ -6329,7 +6630,7 @@ IF G$ = CHR$(27) THEN
     END IF
 END IF
 IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
-    Xo = XYout(1): Yo = XYout(3)
+    Xo = XYout(1): Yo = XYout(3): IBTYP = 0
     CALL SearchBALL(Xo, Yo, Tc, N, Xc, Yc, ITYPE, IBTYP, FOUND)
     IF FOUND <> 0 THEN
         IF ITYPE < 0 THEN
@@ -6895,8 +7196,9 @@ Xmin = XminR: Xmax = XmaxR: Ymin = YminR: Ymax = YmaxR
 XYlim(1) = Xmin: XYlim(2) = Xmax: XYlim(3) = Ymin: XYlim(4) = Ymax
 'FOR I% = 1 TO NAX: ID%(I%, 1) = I%: ID%(I%, 2) = I%: NEXT I%
 REDOP:
-'XYscr(1) = YSPMODE: XYscr(2) = YSPMODE - 50: XYscr(3) = 50: XYscr(4) = 0: XYscr(5) = 0
-XYscr(1) = YSPMODE - 70: XYscr(2) = YSPMODE - 70: XYscr(3) = 40: XYscr(4) = 0: XYscr(5) = 0
+IF XYscr(1) = 0 AND XYscr(2) = 0 THEN
+    XYscr(1) = YSPMODE - 70: XYscr(2) = YSPMODE - 70: XYscr(3) = 40: XYscr(4) = 0: XYscr(5) = 0
+END IF
 CALL WIN(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
 Imaker% = 0
 IF Contr(3) = 99 THEN Imaker% = 1: Contr(3) = 1
@@ -7079,6 +7381,7 @@ FOR I% = Imin% TO NS
         YI = Yar(I%, K1%): Yf = Yar(I%, K2%)
         IF XI < XYlim(1) OR XF > XYlim(2) OR YI < XYlim(3) OR Yf > XYlim(4) GOTO DND
         IF I% <> 0 AND Contr(10) <> 2 THEN
+            IF J% < KSEQ THEN CLR = 12 ELSE CLR = 1
             LINE (XI, YI)-(XF, Yf), CLR
             IF Contr(3) <> 0 THEN
                 IF J% = 1 THEN
@@ -7239,7 +7542,7 @@ FOR N = NDISK TO 1 STEP -1
             IF IBTYP = 0 THEN
                 CALL PLOTELS(Xc, Yc, Tc, ITYPE, IBTYP, 10)
             ELSE
-                CALL PLOTELS(Xc, Yc, Tc, ITYPE, IBTYP, 12)
+                CALL PLOTELS(Xc, Yc, Tc, ITYPE, IBTYP, 13)
             END IF
         END IF
     END IF
@@ -7271,6 +7574,7 @@ W% = Xmaker(0)
 IF W% <> 0 THEN T% = 0
 CLR = ABS(CLRL)
 IF CLR > 16 THEN CLR = 16
+IF CLR = 9 THEN CLR = 16
 I = 0: DT = TWOP / ND
 IF W% <> 0 THEN DIM XX(ND), YY(ND)
 A = Rad * (1 + Ecc)
@@ -7351,7 +7655,10 @@ ELSE
     CALL PLOTellipse(Xc, Yc, Theta, Rad, Ecc, CLR)
 END IF
 CLRP = CLR - 9
-IF CLRP = 7 THEN CLRP = 0
+IF CLRP = 0 THEN CLRP = 7
+IF CLR = 9 THEN
+    EXIT SUB
+END IF
 IF ITYP > 0 THEN
     XCP = Xc
     YCP = Yc
@@ -7362,6 +7669,47 @@ IF ITYP > 0 THEN
     PAINT (XCP, YCP), CLRP, CLR - 1
 END IF
 END SUB
+
+SUB PLOTELSsc (Xc, Yc, Theta, ITYP, IBTYP, CLR, SCL)
+SHARED XYlim(), XYscr(), XYplt(), Contr(), Labl$(), Trans(), SHAPES()
+DIM XY(30), XYT(30)
+'
+IF ITYP > 0 THEN
+    FOR K = 0 TO 2 * SHAPES(ITYP, K): XY(K) = SHAPES(ITYP, K): NEXT
+ELSE
+    XY(0) = 1
+END IF
+'
+IF XY(0) <> 1 THEN
+    CALL TRNPOLY(XY(), XYT(), Theta, Xc, Yc)
+    CALL PLOTpoly(XYT(), CLR)
+ELSE
+    IF ITYP > 0 THEN
+        Rad = SHAPES(ITYP, 1) * SCL
+        Ecc = SHAPES(ITYP, 2)
+        IF IBTYP <> 0 THEN Ecc = 0
+    ELSE
+        Rad = -ITYP * SCL
+        Ecc = 1
+    END IF
+    CALL PLOTellipse(Xc, Yc, Theta, Rad, Ecc, CLR)
+END IF
+CLRP = CLR - 9
+IF CLRP = 0 THEN CLRP = 7
+IF CLR = 9 THEN
+    EXIT SUB
+END IF
+IF ITYP > 0 THEN
+    XCP = Xc
+    YCP = Yc
+    IF Trans(0) = 1 THEN
+        XCP = Xc * Trans(1) + Trans(2)
+        YCP = Yc * Trans(3) + Trans(4)
+    END IF
+    PAINT (XCP, YCP), CLRP, CLR - 1
+END IF
+END SUB
+
 
 SUB PLOTELSt (Xc, Yc, Theta, ITYP, IBTYP, CLR)
 SHARED XYlim(), XYscr(), XYplt(), Contr(), Labl$(), Trans(), SHAPES()
@@ -7402,7 +7750,8 @@ DIM XYplt(10)
 Xmin = XYlim(1): Xmax = XYlim(2)
 Ymin = XYlim(3): Ymax = XYlim(4)
 IAD = M1 + NDPART * NDISK
-CLR = 12: IBMAX = M1 + NBD * NDPART: FCAVG = AA(134): THMAX = .17
+NA = AA(20) + 2 * (47 - 1) + 1
+CLR = 12: IBMAX = M1 + NBD * NDPART: FCAVG = AA(NA): THMAX = .017
 IF FCAVG = 0 THEN FCAVG = 3000.00
 PNTMAX = 72 * THMAX / 2.54: COE = 1!
 NFC = 0
@@ -7503,8 +7852,8 @@ IF FRN <> 0 THEN
     CFL = SQR(CFX * CFX + CFY * CFY)
     CFX = CFX / CFL
     CFY = CFY / CFL
-    PN = FRC / (3 * FCAVG) * PNTMAX
-    IF PN > PNTMAX THEN PN = PNTMAX
+    TN = (FRC / FCAVG) * PNTMAX
+    IF TN > PNTMAX THEN TN = PNTMAX
     XI = Xcen - CFX * CVL1: YI = Ycen - CFY * CVL1
     XF = Xcen + CFX * CVL2: Yf = Ycen + CFY * CVL2
     IIN% = 0: IFI% = 0
@@ -7513,7 +7862,7 @@ IF FRN <> 0 THEN
     IF IFI% + IIN% > 0 THEN
         '        IF NOPLT = 1 THEN
         CALL SLINE(XI, YI, XF, Yf, 12, TN, XYlim(), XYscr(), XYplt(), Contr())
-        'LOCATE 1, 1: PRINT USING "#### #### ##.###^^^^ ##.###^^^^ ##.###^^^^ ##.###^^^^"; IB1, IB2, FRN, FRC, TN, TNMAX
+        'LOCATE 1, 1: PRINT USING "#### #### ##.###^^^^ ##.###^^^^ ##.###^^^^ ##.###^^^^"; IB1, IB2, FRN, FRC, TN, FCAVG
         'WHILE INKEY$ = "": WEND
         '        END IF
         IF Contr(3) <> 0 THEN
@@ -7536,7 +7885,7 @@ IF FRN <> 0 THEN
 END IF
 SSSX:
 IAD = IAD + NCPART
-G$ = INKEY$
+G$ = ""
 IF G$ <> CHR$(27) GOTO NEXTforce
 FINforces:
 GAMMA = NFC / (NDISK - NBD)
@@ -7575,6 +7924,8 @@ IF Contr(3) <> 0 THEN
     END IF
 END IF
 CALL BORDER(XYlim(), XYscr())
+CALL SMALLPLOT(XYlim(), XYscr(), XYout(), Contr(), 3)
+CALL CHECKAUTO
 END SUB
 
 SUB PlotLINKS (XYlim(), XYscr(), XYplt(), XYout(), Labl$(), Contr(), CNT%())
@@ -7624,7 +7975,7 @@ Trans(2) = Xoff - Trans(1) * Xmin
 Trans(4) = Ylas - Trans(3) * Ymin
 MAXN% = MAXC%
 MAXC% = 12 - MAXC%
-FOR N = 1 TO 16: NDIST(N) = 0: NEXT
+FOR N = 0 TO 16: NDIST(N) = 0: NEXT
 NBD = 0
 FOR N = 1 TO NDISK
     CALL GETDISC(N, Xc, Yc, Tc, ITYPE, IBTYP)
@@ -7638,6 +7989,10 @@ FOR N = 1 TO NDISK
         NV% = CNT%(N)
         NDIST(NV%) = NDIST(NV%) + 1
         CLR = COORDC(NV%) + 1
+        '        IF NV% = 0 THEN
+        'LOCATE 1, 1: PRINT CLR
+        'WHILE INKEY$ = "": WEND
+        '        END IF
         CALL PLOTELS(Xc, Yc, Tc, ITYPE, IBTYP, CLR)
     END IF
 NEXT
@@ -7645,7 +8000,8 @@ GAMMA = NFC / (NDISK - NBD)
 LOCATE ROIN%, CMIN%: PRINT USING "Gamma=#.###"; GAMMA
 Trans(0) = 1
 K% = ROIN% + 1
-FOR M% = 1 TO 16
+SC = 16 / (2 * RAVER * ABS(Trans(1)))
+FOR M% = 0 TO 16
     IF NDIST(M%) <> 0 THEN
         K% = K% + 1
         YPi = K% * 16: YPf = YPi + 16
@@ -7656,7 +8012,7 @@ FOR M% = 1 TO 16
         WINDOW: VIEW
         VIEW (XPi, YPi)-(XPf, YPf): CLS: VIEW
         CLR = COORDC(M%) + 1
-        CALL PLOTELS(XPc, YPc, Tc, ITYPE, IBTYP, CLR)
+        CALL PLOTELSsc(XPc, YPc, Tc, ITYPE, IBTYP, CLR, SC)
         LOCATE K% + 1, CMIN% + 4
         PRINT USING "#"; M%;
         PRINT " (";
@@ -7670,8 +8026,8 @@ FOR N = 1 TO NDISK
     CNT%(N) = 0
 NEXT
 CALL BORDER(XYlim(), XYscr())
-WHILE INKEY$ = "": WEND
-'
+CALL SMALLPLOT(XYlim(), XYscr(), XYout(), Contr(), 2)
+CALL CHECKAUTO
 END SUB
 
 SUB PLOTpoly (XY(), CLR)
@@ -7881,6 +8237,25 @@ IF m0% = 4 THEN
 END IF
 END SUB
 
+SUB READNUMZZ (PS1, Z$)
+SHARED LNW%, FW%, RN, RNZ, FLZ$
+'gives number in position ps
+PS = PS1 + 1
+BT = (PS - 1) * LNW% + 1
+RN = INT((BT - 1) / FW%) + 1
+PSR = BT - (RN - 1) * FW%
+IF RN <> RNZ THEN
+    GET #6, RN
+    RNZ = RN
+END IF
+Z$ = MID$(FLZ$, PSR, LNW%)
+'F$ = ""
+'FOR N% = 1 TO 4
+'F$ = F$ + MID$(Z$, 5 - N%, 1)
+'NEXT
+'Z$ = F$
+END SUB
+
 SUB READNUM (PS1, Z$)
 SHARED LNW%, FW%, RN, RNP, FLD$
 'gives number in position ps
@@ -7943,10 +8318,14 @@ END SUB
 SUB REST (FL0$)
 END SUB
 
-SUB Retreve (PaddressF, HistNoY, Xar(), Yar(), Sc, Cfile0$, XaddressF, HistNoF, SCX, NewXLoc, NewYLoc)
-SHARED WDMODE, XDMODE
-'LOCATE 1, 1: PRINT "PaddressF, HistNoY, XaddressF, HistNoF, SCX, NewXLoc, NewYLoc"
-'LOCATE 2, 1: PRINT PaddressF, HistNoY, XaddressF, HistNoF, SCX, NewXLoc, NewYLoc
+SUB Retreve (PaddressF, HistNoY, NewYLoc, Sc, XaddressF, HistNoF, NewXLoc, SCX, Xar(), Yar(), Cfile0$)
+SHARED NOBFILE, WDMODE, XDMODE, SPMODE, Lfile$
+SCREEN SPMODE
+Cfile$ = Cfile0$
+'NewYloc <> 0 - Sequence No of item in the "NEW AREA"
+'NewYloc  = 0 - Retrieved from HistNoY at PaddressF
+'LOCATE 1, 1: PRINT XaddressF, HistNoF, NewXLoc, Sc
+'LOCATE 2, 1: PRINT PaddressF, HistNoY, NewYLoc, SCX
 'WHILE INKEY$ = "": WEND
 IAD = 0
 ILOGY = 0
@@ -7954,7 +8333,6 @@ ILOGX = 0
 Deriv = 0
 YMX = 0
 FMC$ = ""
-Cfile$ = Cfile0$
 CLOSE #1
 '
 IF PaddressF = -999 THEN
@@ -7971,9 +8349,32 @@ IF NewYLoc <> 0 AND HistNoY <> 0 THEN
         INC = 1
         IINC = 12
     END IF
+
+    IF ABS(PaddressF) = 2 THEN
+        INC = 2
+        IINC = 0
+    END IF
+
+    IF ABS(PaddressF) = 3 THEN
+        INC = 3
+        IINC = 0
+    END IF
+
     IF ABS(PaddressF) = 10 THEN
         INC = 10
         IINC = 13
+    END IF
+    IF ABS(PaddressF) = 5 THEN
+        INC = 5
+        IINC = 0
+    END IF
+    IF ABS(PaddressF) = 6 THEN
+        INC = 6
+        IINC = 0
+    END IF
+    IF ABS(PaddressF) = 7 THEN
+        INC = 7
+        IINC = 0
     END IF
 END IF
 Deriv = 0
@@ -8004,12 +8405,43 @@ ELSE
     CALL INITfile(Cfile$)
     LOCATE WDMODE, 6: PRINT Cfile$; ": ";
     K = K + 1
+    Xar(0, K) = CURFILE%
+    Yar(0, K) = CURFILE%
     IF NewYLoc <> 0 AND HistNoY <> 0 THEN
-        Yar(1, K) = (AA(Yaddress + INC) + AA(Yaddress + IINC)) * Sc
-        IF PaddressF = -1 THEN
-            Xar(1, K) = (AA(Yaddress + INC - 1) + AA(Yaddress + IINC - 1)) * Sc
+        IF PaddressF = -3 OR PaddressF = -6 THEN
+            Yar(1, K) = SQR(AA(Yaddress + INC) ^ 2 + AA(Yaddress + INC - 1) ^ 2) * Sc
+            IF NewXLoc <> 0 THEN
+                Xaddress = RECMAX + 2 * (NewXLoc - 1) + 1
+                Xar(1, K) = AA(Xaddress) * SCX
+            ELSE
+                Xar(1, K) = K
+            END IF
         ELSE
-            Xar(1, K) = K
+            IF IINC <> 0 THEN
+                Yar(1, K) = (AA(Yaddress + INC) + AA(Yaddress + IINC)) * Sc
+                IF PaddressF = -1 THEN
+                    Xar(1, K) = (AA(Yaddress + INC - 1) + AA(Yaddress + IINC - 1)) * Sc
+                ELSE
+                    IF HistNoF <> 0 THEN
+                        Xaddress = RECHIS + (HistNoF - 1) * 47 + 40 + XaddressF
+                        Xar(1, K) = AA(Xaddress) * SCX
+                    ELSE
+                        Xar(1, K) = K
+                    END IF
+                END IF
+            ELSE
+                Yar(1, K) = AA(Yaddress + INC) * Sc
+                IF Paddress < 0 THEN
+                    Xar(1, K) = AA(Yaddress + INC - 1) * Sc
+                ELSE
+                    IF HistNoF <> 0 THEN
+                        Xaddress = RECHIS + (HistNoF - 1) * 47 + 40 + XaddressF
+                        Xar(1, K) = AA(Xaddress) * SCX
+                    ELSE
+                        Xar(1, K) = K
+                    END IF
+                END IF
+            END IF
         END IF
     ELSE
         IF NewYLoc <> 0 THEN
@@ -8023,19 +8455,29 @@ ELSE
                 Yar(1, K) = AA(Yaddress) * Sc
             END IF
             IF NewXLoc <> 0 THEN
-                XAddress = RECMAX + 2 * (NewXLoc - 1) + 1
-                Xar(1, K) = AA(XAddress) * SCX
+                Xaddress = RECMAX + 2 * (NewXLoc - 1) + 1
+                Xar(1, K) = AA(Xaddress) * SCX
             ELSE
-                Xar(1, K) = K
+                IF HistNoF <> 0 THEN
+                    Xaddress = RECHIS + (HistNoF - 1) * 47 + 40 + XaddressF
+                    Xar(1, K) = AA(Xaddress) * SCX
+                ELSE
+                    Xar(1, K) = K
+                END IF
             END IF
         ELSE
             Yaddress = RECHIS + (HistNoY - 1) * 47 + 40 + PaddressF
             Yar(1, K) = AA(Yaddress) * Sc
             IF NewXLoc <> 0 THEN
-                XAddress = RECMAX + 2 * (NewXLoc - 1) + 1
-                Xar(1, K) = AA(XAddress) * SCX
+                Xaddress = RECMAX + 2 * (NewXLoc - 1) + 1
+                Xar(1, K) = AA(Xaddress) * SCX
             ELSE
-                Xar(1, K) = K
+                IF HistNoF <> 0 THEN
+                    Xaddress = RECHIS + (HistNoF - 1) * 47 + 40 + XaddressF
+                    Xar(1, K) = AA(Xaddress) * SCX
+                ELSE
+                    Xar(1, K) = K
+                END IF
             END IF
         END IF
     END IF
@@ -8063,6 +8505,7 @@ ELSE
     END IF
     NXTRET:
     CLOSE #1
+    Lfile$ = Cfile$
     CALL MakeNext(Cfile$, NEWFILE)
     GOTO REPRet
 END IF
@@ -8569,6 +9012,10 @@ END SUB
 
 SUB SearchBALL (Xo, Yo, Tc, N, Xc, Yc, ITYPE, IBTYP, FOUND)
 DIM NBSAV(20), SPLIT(20), XYT(50), XY(50)
+NOBD = 0
+IF IBTYP < 0 THEN
+    NOBD = 1
+END IF
 IF ABS(Xo) < 1.E-3 AND ABS(Yo) < 1.0E-3 THEN
     FFmax = 0
     FOR N = 1 TO NDISK
@@ -8603,6 +9050,7 @@ FOR I = 1 TO NBMAP
         D = SQR((Xc - Xo) ^ 2 + (Yc - Yo) ^ 2)
         IF ITYPE < 0 THEN
             RB = -2 * ITYPE
+            IF NOBD = 1 THEN RB = 0
         ELSE
             RB = R(ITYPE)
         END IF
@@ -8697,7 +9145,7 @@ BB#(I) = AAA#
 GOTO S10
 END SUB
 
-SUB SUMMARY (IPRINT, PPOS, Cfile$, XYscr())
+SUB SUMMARY (IPRINT, PPOS, Cfile$)
 SHARED XDMODE, Olist$()
 RREPsummary:
 IF IPRINT <> 0 THEN
@@ -8758,7 +9206,6 @@ ELSE
             GOTO LPsummary
         END IF
         CLS
-        'CALL BORDER(XYlim(), XYscr())
     ELSE
         Olist$(0) = MID$(STR$(KG), 2)
     END IF
@@ -8808,6 +9255,7 @@ IF MODE = 0 THEN
     Yoff% = 14
 END IF
 IF MODE < 0 THEN
+    COLOR 10
     NSCXDEF = XYlim(8)
     NSCYDEF = XYlim(9)
     Yoff% = 18
@@ -9794,6 +10242,7 @@ XYscr(10) = YmaxS
 62230 Ii = -1
 62235 Ic = 0: LDMAX = 0
 Lymax = 0
+KNEG = 0: KPOS = 0
 62240 FOR I = IYMIN TO IYMAX
     62250 dddd$ = "": LDD = 0: Ii = Ii + 1
     62252 IF RFLAG = 1 THEN dddd$ = Labl$(7 + NNX + Ii): LLLK = LEN(dddd$): GOSUB 65450: GOTO 62570
@@ -9872,7 +10321,10 @@ Lymax = 0
     END IF
     GOSUB 7001: IF FLRG = 1 THEN GOTO STRT
     62636 IF Ic = 1 THEN Ic = 0 ELSE Ic = 1
+    IF VAL(dddd$) < 0 THEN KNEG = KNEG + 1
+    IF VAL(dddd$) > 0 THEN KPOS = KPOS + 1
 62647 NEXT I
+IF KNEG <= KPOS THEN Lymax = Lymax - 1
 62648 ABC$(48) = "BL1L4H1U1E1R4F1D1BU5"
 62649 ABC$(49) = "BU3L6F1BR5U2BU2"
 62650 ABC$(45) = "BL3U4BR3BU2"
@@ -9888,7 +10340,7 @@ Ly = 5 * Lymax + 3
 60675 IF RFLAG = 1 THEN MSD = (XYMAX - XYMIN) / NNXY: NTIK = NNXY + 1: RETURN
 62680 A(1) = 1!: A(2) = 2!: A(3) = 5!
 62690 MSD = (XYMAX - XYMIN) / N
-62700 FOR I = -11 TO 8
+62700 FOR I = -11 TO 12
     62710 FOR K = 1 TO 3
         62720 IF MSD <= A(K) * 10 ^ I THEN GOTO 62750
     62730 NEXT K
@@ -10229,6 +10681,145 @@ IF AXREV = 0 THEN WINDOW (Xmin, Ymin)-(Xmax, Ymax) ELSE WINDOW SCREEN(Xmin, Ymin
 RETURN
 END SUB
 
+SUB PlotVELOCITY (XYlim(), XYscr(), XYplt(), XYout(), Contr(), IFORD, CLR, DEt)
+DIM XYC(1000), XYP(1000), DCX(1000), DCY(1000)
+DIM THT(1000), THP(1000), IC(1000), IT(1000), DRT(1000)
+'IFORD = 1: FILE ZZ IS NEXT
+'IFORD = 2: FILE ZZ IS PREVIOUS
+SHARED WDMODE, ROIN%, CMIN%
+KSQ = 25
+NA = AA(20) + 2 * (KSQ - 1) + 1: ETC = AA(NA)
+NA = ZZ(20) + 2 * (KSQ - 1) + 1: ETP = ZZ(NA)
+DEt = ETP - ETC
+KSQ = 54
+NA = AA(20) + 2 * (KSQ - 1) + 1: CLAVER = AA(NA)
+
+DDM = 0: OPT = 0: KA = 0: DSUM = 0
+'
+FOR OPT = O TO 1
+    FOR N = 1 TO NPOL
+        CALL GETPOLYDISP(N, XYC(), THT(), XYP(), THP(), IC(), IT(), IBP)
+        IF IBP = 0 THEN
+            KS = XYC(0)
+            FOR K = 1 TO KS
+                XC = XYC(2 * K - 1)
+                YC = XYC(2 * K)
+                TC = THT(K)
+                '
+                XP = XYP(2 * K - 1)
+                YP = XYP(2 * K)
+                TP = THP(K)
+                '
+                DCX(K) = XP - XC
+                DCY(K) = YP - YC
+                DRT(K) = TP - TC
+                '
+            NEXT
+            FOR K = 1 TO KS
+                K1 = K
+                K2 = K + 1
+                IF K2 > KS THEN
+                    K2 = 1
+                END IF
+                IB1 = IC(K1)
+                IB2 = IC(K2)
+                ITYPE1 = IT(K1)
+                ITYPE2 = IT(K2)
+                '
+                XC1 = XYC(2 * K1 - 1)
+                YC1 = XYC(2 * K1)
+                TH1 = THT(K1)
+                '
+                XC2 = XYC(2 * K2 - 1)
+                YC2 = XYC(2 * K2)
+                TH2 = THT(K2)
+                '
+                DX1 = DCX(K1)
+                DY1 = DCY(K1)
+                DX2 = DCX(K2)
+                DY2 = DCY(K2)
+                DT1 = DRT(K1)
+                DT2 = DRT(K2)
+                '
+                'IF N = 71 AND IB1 = 404 THEN
+                '    LOCATE 3, 1: PRINT IB1, XC1, YC1, TH1
+                '    LOCATE 4, 1: PRINT IB1, DX1, DY1, DT1
+                '    WHILE INKEY$ = "": WEND
+                'END IF
+                'IF N = 71 AND IB2 = 481 THEN
+                '    LOCATE 5, 1: PRINT IB2, XC2, YC2, TH2
+                '    LOCATE 6, 1: PRINT IB2, DX2, DY2, DT2
+                '    WHILE INKEY$ = "": WEND
+                'END IF
+                '
+                CALL PLOTRELDISP(XC1, YC1, TH1, XC2, YC2, TH2, ITYPE1, ITYPE2, DX1, DY1, DT1, DX2, DY2, DT2, DDM, DD, OPT, CLAVER)
+                IF OPT = 0 THEN
+                    DSUM = DSUM + DD
+                    KA = KA + 1
+                END IF
+            NEXT
+        END IF
+    NEXT
+NEXT
+KSQ = 25
+NA = AA(20) + 2 * (KSQ - 1) + 1: ETC = AA(NA)
+NA = ZZ(20) + 2 * (KSQ - 1) + 1: ETP = ZZ(NA)
+DE = ETP - ETC
+IF KA <> 0 THEN
+    DSUM = DSUM / KA
+END IF
+IF DE <> 0 THEN
+    DDM = DDM / DE
+    DSUM = DSUM / DE
+END IF
+LOCATE WDMODE, CMIN% - 8: PRINT USING "RDmax=##.###"; DDM / (2 * CLAVER);
+LOCATE WDMODE, CMIN% + 8: PRINT USING "RRavg=##.###"; DSUM / (2 * CLAVER);
+CLOSE #6
+CALL BORDER(XYlim(), XYscr())
+CALL SMALLPLOT(XYlim(), XYscr(), XYout(), Contr(), 3)
+CALL CHECKAUTO
+END SUB
+
+SUB PLOTRELDISP (XC1, YC1, TH1, XC2, YC2, TH2, ITYP1, ITYP2, DX1, DY1, DT1, DX2, DY2, DT2, DDM, DD, OPT, CLAVER)
+NDPART = 14: NCPART = 6
+DIM XYCN(4, 2)
+
+IF ITYP1 < 0 THEN
+    RBAR1 = -ITYP1
+    ECC1 = 1
+ELSE
+    RBAR1 = SHAPES(ITYP1, 1)
+    ECC1 = SHAPES(ITYP1, 2)
+END IF
+IF ITYP2 < 0 THEN
+    RBAR2 = -ITYP2
+    ECC2 = 1
+ELSE
+    RBAR2 = SHAPES(ITYP2, 1)
+    ECC2 = SHAPES(ITYP2, 2)
+END IF
+STIF = 1: XLAMBDA = 0: AMU = 0
+'DX1 = 0: DX2 = 0: DY1 = 0: DY2 = 0: DT1 = 0: DT2 = 0
+FRN = 0: FTA = 0: DN = 0: DT = 0
+CALL FORCES(XC1, YC1, RBAR1, ECC1, TH1, XC2, YC2, RBAR2, ECC2, TH2, CVX1, CVY1, CVX2, CVY2, CNX1, CNY1, CTX1, CTY1, DX1, DY1, DT1, DX2, DY2, DT2, FNA, FTA, DFN, DFT, FXD1, FYD1, FXD2, FYD2, DM1, DM2, DN, DT, IFLAG, STIF, XLAMBDA, BDT, AMU, XYCN())
+'
+DX = (DN * CNX1 + DT * CTX1)
+DY = (DN * CNY1 + DT * CTY1)
+IF OPT = 0 THEN
+    DD = SQR(DX * DX + DY * DY)
+    IF DD > DDM THEN DDM = DD
+ELSE
+    DX = DX / DDM
+    DY = DY / DDM
+    Xcen = XYCN(1, 1): Ycen = XYCN(1, 2)
+    PSET (Xcen, Ycen), 15
+    Xi = Xcen: Yi = Ycen
+    Xf = Xcen + 0.5 * CLAVER * DX
+    Yf = Ycen + 0.5 * CLAVER * DY
+    LINE (Xi, Yi)-(Xf, Yf), 15
+END IF
+END SUB
+
 SUB PlotPolygons (CLR)
 DIM XY1(20000)
 FOR N = 1 TO NPOL
@@ -10298,6 +10889,36 @@ FOR N = 1 TO NGROUP
         END IF
     NEXT
 NEXT
+END SUB
+
+SUB GETPOLYDISP (IP, XYC(), THT(), XYP(), THP(), IC(), IT(), IBP)
+KP = RECPOL + IP
+KI = RECPOL + NPOL
+KP = AA(KP)
+IBP = 0
+ING% = 1
+IF KP < 0 THEN
+    ING% = -1
+    KP = -KP
+END IF
+KS = AA(KI + KP)
+FOR KK = 1 TO KS
+    IB = AA(KI + KP + KK)
+    IC(KK) = IB
+    CALL GETDISC(IB, CXc, CYc, Tc, ITYPE, IBTYP)
+    THT(KK) = Tc
+    IT(KK) = ITYPE
+    CALL GETDISZ(IB, PXc, PYc, PTc, ITYPE, IBTYP)
+    THP(KK) = PTc
+    K1 = 2 * KK - 1: K2 = K1 + 1
+    XYC(K1) = CXc: XYC(K2) = CYc
+    XYP(K1) = PXc: XYP(K2) = PYc
+    IF IBTYP = -2 THEN
+        IBP = -2
+    END IF
+NEXT
+XYC(0) = KS * ING%
+XYC(0) = KS * ING%
 END SUB
 
 SUB GETPOLYall (IP, XYf(), IC(), IN(), Xc, Yc, Area, Xmin, Xmax, Ymin, Ymax)
@@ -10570,14 +11191,37 @@ NEXT I
 CLOSE #2
 END SUB
 
+SUB SaveDataExt (DMPFILE1$, Xar(), Yar(), PAR$(), Labl$())
+NSD% = 1: NS = 1
+N = INSTR(1, DMPFILE1$, ".")
+DMPFILE$ = MID$(DMPFILE1$, 1, N) + "TXT"
+OPEN DMPFILE$ FOR OUTPUT AS #2
+PRINT #2, "HEADER=" + "FILE " + Labl$(0)
+PRINT #2, USING "NO. OF SCREENS=#"; NSD%
+PRINT #2, USING "NO. OF SETS PER SCREEN=#"; NS
+PRINT #2, "LEGEND TITLE=" + PAR$(0)
+PRINT #2, "TITLE="; Labl$(3)
+PRINT #2, "XLABEL=" + Labl$(1)
+PRINT #2, "YLABEL=" + Labl$(2)
+FOR I = 1 TO NS
+    ND = Yar(I, 0)
+    PRINT #2, USING "SET # PARAM="; I;: PRINT #2, PAR$(I)
+    FOR J = 1 TO ND
+        PRINT #2, USING "#### , #.#######^^^^ , #.#######^^^^ "; Xar(0, J); Xar(I, J); Yar(I, J)
+    NEXT J
+    PRINT #2, "XEND,YEND"
+NEXT I
+CLOSE #2
+END SUB
+
 SUB LastFile (Dfile$)
 OPEN "C:\TEMP\LastFile.txt" FOR OUTPUT AS #2
 PRINT #2, Dfile$
 CLOSE #2
 END SUB
 
-SUB MakeFstring (KSEQ, KSQ$)
-KSQ$ = MID$(STR$(KSEQ), 2)
+SUB MakeFstring (KSEX, KSQ$)
+KSQ$ = MID$(STR$(KSEX), 2)
 KSQ$ = STRING$(4 - LEN(KSQ$), "0") + KSQ$
 END SUB
 
@@ -11074,4 +11718,943 @@ Yshift = Ylas - Coefy * Ymin
 IF AXREV THEN Coefy = -Coefy: Yshift = Yoff - Coefy * Ymin
 DPR = 0.5 * (ABS(Coefx) + ABS(Coefy))
 DPR = 1 / DPR
+END SUB
+
+SUB CHECKAUTO
+IF AUT = 1 THEN
+    CALL DELAY(GG$)
+    EXIT SUB
+END IF
+IF NOSTOP = 1 THEN
+    CALL DELAY(GG$)
+    IF UCASE$(GG$) = "A" THEN
+        NOSTOP = 0
+    END IF
+    IF UCASE$(GG$) = "X" THEN
+        GTERM$ = "X"
+        AUT = 1
+    END IF
+ELSE
+    SLEEP 2
+    GG$ = INKEY$
+    IF UCASE$(GG$) = "S" THEN
+        NOSTOP = 1
+    END IF
+    IF UCASE$(GG$) = "X" THEN
+        GTERM$ = "X"
+        AUT = 1
+    END IF
+END IF
+END SUB
+
+SUB SMALLPLOT (XYlim(), XYscr(), XYout(), Contr(), NPLOT)
+SHARED XSPMODE, YSPMODE, SPMODE, WDMODE, XDMODE, ND
+SHARED Xa1(), Ya1(), Xa2(), Ya2(), Xa3(), Ya3()
+SHARED LBA1$(), LBA2$(), LBA3$()
+SHARED Trans()
+IF NPLOT = 0 THEN EXIT SUB
+
+IF LBA1$(1) = "" AND LBA2$(1) = "" AND LBA3$(1) = "" THEN EXIT SUB
+
+DIM XYlimL(10), XYscrL(10), XYpltL(10), ContrL(10), LablL$(30)
+DIM XYlimP(10), XYscrP(10), XYpltP(10), ContrP(10), LablP$(30)
+DIM XYlimQ(10), XYscrQ(10), XYpltQ(10), ContrQ(10), LablQ$(30)
+DIM PAR$(10)
+SLMIN = XYscr(2) + 2: CMIN = INT(SLMIN / 8) + 2: CMAX = CMIN + 27
+IF CMAX < XDMODE THEN
+    CMIN = CMIN + INT(0.5 * (XDMODE - CMAX))
+END IF
+VIEW (XYscr(1), XYscr(3))-(XYscr(2), XYscr(4))
+FOR I% = 0 TO 10
+    XYlimL(I%) = 0: XYscrL(I%) = 0: XYpltL(I%) = 0: ContrL(I%) = 0: LablL$(I%) = ""
+    XYlimP(I%) = 0: XYscrP(I%) = 0: XYpltP(I%) = 0: ContrP(I%) = 0: LablP$(I%) = ""
+    XYlimQ(I%) = 0: XYscrQ(I%) = 0: XYpltQ(I%) = 0: ContrQ(I%) = 0: LablQ$(I%) = ""
+NEXT
+
+XSmin = XYscr(2) + 40: YSmin = XYscr(3) ' X AND Y offsets of the plot area
+XSwid = XSPMODE - XSmin - 10 ' Width (X) of the plot area
+YPhei = XYscr(4) - XYscr(3) ' Height (Y) of the plot area
+YShei = YPhei / 3 - 24 ' Height of plot area for one screen
+
+XYlimL(1) = 0: XYlimL(2) = 1
+XYlimL(3) = 0: XYlimL(4) = 0.5
+
+XYlimL(8) = XSPMODE: XYlimL(9) = YSPMODE: XYlimL(10) = SPMODE
+
+XYscrL(1) = XSwid
+XYscrL(2) = YShei
+XYscrL(3) = XSmin: XYscr(5) = 10
+XYscrL(4) = YSmin - 18
+
+LablL$(1) = LBA1$(1): LablL$(2) = LBA1$(2): NS = 1: NA = 0
+PAR$(0) = ""
+CALL PLOT(Xa1(), Ya1(), PAR$(), NA, NS, XYlimL(), XYscrL(), XYpltL(), LablL$(), ContrL())
+
+IF NPLOT <= 1 THEN EXIT SUB
+
+XYscrP(1) = XSwid
+XYscrP(2) = YShei
+XYscrP(3) = XSmin: XYscr(5) = 10
+XYscrP(4) = XYscrL(4) + 18
+
+ContrP(1) = 0
+
+XYlimP(8) = XSPMODE: XYlimP(9) = YSPMODE: XYlimP(10) = SPMODE
+LablP$(1) = LBA2$(1): LablP$(2) = LBA2$(2): NS = 1: NA = 0
+PAR$(0) = ""
+CALL PLOT(Xa2(), Ya2(), PAR$(), NA, NS, XYlimP(), XYscrP(), XYpltP(), LablP$(), ContrP())
+
+IF NPLOT <= 2 THEN EXIT SUB
+
+XYlimQ(1) = 0: XYlimQ(2) = 1
+XYlimQ(3) = 0: XYlimQ(4) = 0.5
+
+XYscrQ(1) = XSwid
+XYscrQ(2) = YShei
+XYscrQ(3) = XSmin: XYscr(5) = 10
+XYscrQ(4) = XYscrP(4) + 18
+
+ContrQ(1) = 0
+
+XYlimQ(8) = XSPMODE: XYlimQ(9) = YSPMODE: XYlimQ(10) = SPMODE
+LablQ$(1) = LBA3$(1): LablQ$(2) = LBA3$(2): NS = 1: NA = 0
+PAR$(0) = ""
+CALL PLOT(Xa3(), Ya3(), PAR$(), NA, NS, XYlimQ(), XYscrQ(), XYpltQ(), LablQ$(), ContrQ())
+
+END SUB
+
+SUB GraphsInfo (Cfile$, NNgrX$, NgrX$, NNgrY$, NgrY$, NBL, NGR)
+SHARED Olist$(), Hlist$(), RECMAX
+DIM Boxes(30), OPTIONS(30), ITEMS$(30)
+DIM SBoxes(30), SOPTIONS(30), SItems$(30)
+DIM Saddr(30), Sname$(30), Par$(10), Scale(30)
+SHARED Xar(), Yar()
+SHARED XSPMODE, YSPMODE, SPMODE, WDMODE
+SHARED SELITEMX$, SELITEMY$
+'IF NOBFILE = 1 THEN
+'    LOCATE 5, 1: PRINT "Closing"
+'    WHILE INKEY$ = "": WEND
+'EXIT SUB
+'END IF
+CALL INITfile(Cfile$)
+IF VAL(Olist$(0)) = 0 THEN
+    PPOS = RECMAX
+    CALL SUMMARY(0, PPOS, Cfile$)
+    KV = VAL(Olist$(0))
+END IF
+IF VAL(Hlist$(0)) = 0 THEN
+    PPOS = RECHIS
+    CALL NEWHIST(0, PPOS)
+    KH = VAL(Hlist$(0))
+END IF
+'
+NewXLoc = 0
+NITEMS = 11
+ITEMS$(1) = "1 - Stress    "
+ITEMS$(2) = "2 - Strain    "
+ITEMS$(3) = "3 - Contacts  "
+ITEMS$(4) = "4 - Normal forces"
+ITEMS$(5) = "5 - Shear  forces"
+ITEMS$(6) = "6 - Orientations"
+ITEMS$(7) = "7 - V/H groups "
+ITEMS$(8) = "8 - Equilibrium"
+ITEMS$(9) = "9 - Particles"
+ITEMS$(10) = "A - Set x-var"
+ITEMS$(11) = "B - Exit "
+'
+IF NNgrX$ = "0" AND NgrX$ = "0" THEN
+    HistNoX = 0
+    Lx$ = "Output No": Xaddress = 13: SCX = 1
+    GOTO SKIPX:
+END IF
+
+'
+G$ = NNgrX$
+NSGG = VAL(G$)
+CALL AssignGroup(G$, SItems$(), Sname$(), Saddr(), Scale(), SNitems)
+S$ = "0"
+CALL Match(S$, NgrX$)
+NSG = VAL(S$)
+SN$ = SItems$(NSG): Xaddress = Saddr(NSG): SCX = Scale(NSG): Lx$ = SN$
+NewXLoc = 0: HistNoX = 0
+SS$ = Sname$(NSG)
+IF Xaddress = 0 THEN
+    NewXLoc = MatchOList(SS$)
+    HistNoX = 0
+ELSE
+    HistNoX = MatchHList(SS$)
+END IF
+IF NSGG = 9 THEN
+    IF NBL <> 0 THEN
+        NewXLoc = NBL
+        HistNoX = NSGG
+        Sc = 1
+    END IF
+END IF
+'
+IF NSGG = 7 THEN
+    IF NSG <= 5 THEN
+        HistNoX = NBL
+        NewXLoc = 0
+        Xaddress = -NGR + 1
+    ELSE
+        HistNoX = NBL
+        NewXLoc = 0
+    END IF
+END IF
+'
+SKIPX:
+'
+G$ = NNgrY$
+NSGG = VAL(G$)
+CALL AssignGroup(G$, SItems$(), Sname$(), Saddr(), Scale(), SNitems)
+'
+S$ = "0"
+CALL Match(S$, NgrY$)
+NSG = VAL(S$)
+SN$ = SItems$(NSG): PaddressY = Saddr(NSG): Sc = Scale(NSG): Ly$ = SN$
+SS$ = Sname$(NSG)
+NewYLoc = 0: HistNoY = 0
+IF PaddressY = 0 THEN
+    NewYLoc = MatchOList(SS$)
+    HistNoY = 0
+ELSE
+    HistNoY = MatchHList(SS$)
+END IF
+IF NSGG = 9 THEN
+    IF NBL <> 0 THEN
+        NewYLoc = NBL
+        HistNoY = NSGG
+        Sc = 1
+    END IF
+END IF
+'
+IF NSGG = 7 THEN
+    IF NSG <= 5 THEN
+        HistNoY = NBL
+        NewYLoc = 0
+        PaddressY = -NGR + 1
+    ELSE
+        HistNoY = NBL
+        NewYLoc = 0
+    END IF
+END IF
+'
+CALL Retreve(PaddressY, HistNoY, NewYLoc, Sc, Xaddress, HistNoX, NewXLoc, SCX, Xar(), Yar(), Cfile$)
+K% = INSTR(1, Ly$, "-")
+IF K% <> 0 THEN
+    Ly$ = MID$(Ly$, K% + 2)
+END IF
+K% = INSTR(1, Lx$, "-")
+IF K% <> 0 THEN
+    Lx$ = MID$(Lx$, K% + 2)
+END IF
+SELITEMX$ = Lx$
+SELITEMY$ = Ly$
+END SUB
+
+SUB TRANSFER (N)
+SHARED Xar(), Yar()
+SHARED Xa1(), Ya1(), Xa2(), Ya2(), Xa3(), Ya3()
+SHARED LBA1$(), LBA2$(), LBA3$(), LablF$()
+SHARED SELITEMX$, SELITEMY$
+IF N = 0 THEN
+    LablF$(1) = SELITEMX$
+    LablF$(2) = SELITEMY$
+    EXIT SUB
+END IF
+IF N = 1 THEN
+    KD% = Xar(1, 0)
+    FOR I% = 0 TO KD%
+        Xa1(1, I%) = Xar(1, I%)
+        Ya1(1, I%) = Yar(1, I%)
+    NEXT
+    LBA1$(1) = SELITEMX$
+    LBA1$(2) = SELITEMY$
+    EXIT SUB
+END IF
+IF N = 2 THEN
+    KD% = Xar(1, 0)
+    FOR I% = 0 TO KD%
+        Xa2(1, I%) = Xar(1, I%)
+        Ya2(1, I%) = Yar(1, I%)
+    NEXT
+    LBA2$(1) = SELITEMX$
+    LBA2$(2) = SELITEMY$
+    EXIT SUB
+END IF
+IF N = 3 THEN
+    KD% = Xar(1, 0)
+    FOR I% = 0 TO KD%
+        Xa3(1, I%) = Xar(1, I%)
+        Ya3(1, I%) = Yar(1, I%)
+    NEXT
+    LBA3$(1) = SELITEMX$
+    LBA3$(2) = SELITEMY$
+    EXIT SUB
+END IF
+END SUB
+
+SUB NEILIST (IBL, PLS(), BLS(), Xmin, Xmax, Ymin, Ymax, XG, YG)
+DIM IC(1000), XY(2000)
+Xmin = 1.E+37: Xmax = -1.E+37
+Ymin = 1.E+37: Ymax = -1.E+37
+NN = 0
+PLS(0) = NN
+BLS(1) = IBL
+BLS(0) = 1
+FOR IP = 1 TO NPOL
+    KP = RECPOL + IP
+    KI = RECPOL + NPOL
+    KP = AA(KP)
+    ING% = 1
+    IF KP < 0 THEN
+        ING% = -1
+        KP = -KP
+    END IF
+    KS = AA(KI + KP)
+    FND = 0
+    FOR KK = 1 TO KS
+        IB = AA(KI + KP + KK)
+        IC(KK) = IB
+        IF IB = IBL THEN
+            NN = NN + 1
+            PLS(NN) = IP
+            PLS(0) = NN
+            FND = KK
+        END IF
+    NEXT
+    IF FND <> 0 THEN
+        CALL ADDTOLIST(IC(), KS, BLS(), Xmin, Xmax, Ymin, Ymax)
+    END IF
+NEXT
+CALL GETDISC(IBL, Xc, Yc, Tc, ITYPE, IBTYP)
+NN = PLS(0)
+XG = Xc: YG = Yc
+IF NN = 0 THEN
+    FOR IP = 1 TO NPOL
+        CALL GETPOLY(IP, XY())
+        IF IfInsidePoly(Xc, Yc, XY()) = -1 THEN
+            PLS(1) = IP
+            PLS(0) = 1
+            KP = RECPOL + IP
+            KI = RECPOL + NPOL
+            KP = AA(KP)
+            ING% = 1
+            IF KP < 0 THEN
+                ING% = -1
+                KP = -KP
+            END IF
+            KS = AA(KI + KP)
+            FOR KK = 1 TO KS
+                IB = AA(KI + KP + KK)
+                IC(KK) = IB
+            NEXT
+            IC(0) = KS
+            CALL ADDTOLIST(IC(), KS, BLS(), Xmin, Xmax, Ymin, Ymax)
+            EXIT FOR
+        END IF
+    NEXT
+    ' THERE MAY BE OTHER BALLS IN THE POLYGON - CHECK
+
+    FOR N = 1 TO NDISK
+        IF N <> IBL THEN
+            CALL GETDISC(N, Xc, Yc, Tc, ITYPE, IBTYP)
+            IF Xc > Xmin AND Xc < Xmax THEN
+                IF Yc > Ymin AND Yc < Ymax THEN
+                    IF IBTYP = 0 THEN
+                        IF IfInsidePoly(Xc, Yc, XY()) = -1 THEN
+                            KS = BLS(0) + 1
+                            BLS(KS) = N
+                            BLS(0) = KS
+                        END IF
+                    END IF
+                END IF
+            END IF
+        END IF
+    NEXT
+ELSE
+    FOR KN = 1 TO NN
+        IP = PLS(KN)
+        CALL GETPOLY(IP, XY())
+        FOR N = 1 TO NDISK
+            IF N <> IBL THEN
+                CALL GETDISC(N, Xc, Yc, Tc, ITYPE, IBTYP)
+                IF Xc > Xmin AND Xc < Xmax THEN
+                    IF Yc > Ymin AND Yc < Ymax THEN
+                        IF IBTYP = 0 THEN
+                            IF IfInsidePoly(Xc, Yc, XY()) = -1 THEN
+                                KS = BLS(0) + 1
+                                BLS(KS) = N
+                                BLS(0) = KS
+                            END IF
+                        END IF
+                    END IF
+                END IF
+            END IF
+        NEXT
+    NEXT
+END IF
+END SUB
+
+SUB ADDTOLIST (IC(), KS, BLS(), Xmin, Xmax, Ymin, Ymax)
+SHARED SHAPES()
+NB = BLS(0)
+FOR K = 1 TO KS
+    IB = IC(K)
+    FND = 0
+    FOR N = 1 TO NB
+        IF BLS(N) = IB THEN
+            FND = N
+        END IF
+    NEXT
+    IF FND = 0 THEN
+        NB = NB + 1
+        BLS(NB) = IB
+        BLS(0) = NB
+        CALL GETDISC(IB, Xc, Yc, Tc, ITYPE, IBTYP)
+        IF ITYPE < 0 THEN
+            RBAR = -ITYPE
+            Ecc = 1
+        ELSE
+            RBAR = SHAPES(ITYPE, 1)
+            Ecc = SHAPES(ITYPE, 2)
+            IF IBTYP <> 0 THEN Ecc = 0
+        END IF
+        RBAR = RBAR * (1 + Ecc)
+        IF Xc + RBAR > Xmax THEN
+            Xmax = Xc + RBAR
+        END IF
+        IF Xc - RBAR < Xmin THEN
+            Xmin = Xc - RBAR
+        END IF
+        IF Yc + RBAR > Ymax THEN
+            Ymax = Yc + RBAR
+        END IF
+        IF Yc - RBAR < Ymin THEN
+            Ymin = Yc - RBAR
+        END IF
+    END IF
+NEXT
+END SUB
+
+SUB FirstShell (XYlim(), XYscr(), XYplt(), XYout(), Labl$(), Contr())
+SHARED XSPMODE, YSPMODE, SPMODE, WDMODE, XDMODE, ND, LASTBALL
+SHARED XYlimF(), XYscrF(), XYpltF(), XYoutF(), ContrF(), LablF$()
+SHARED XYlimT(), XYscrT(), XYpltT(), XYoutT(), ContrT(), LablT$()
+SHARED Xar(), Yar()
+SHARED Trans()
+SHARED Cfile$, LNO, NOBMP
+DIM NEIGH(1000), IADCONT(1000), APPLX(1000), APPLY(1000), FORX(1000), FORY(1000), XY(40)
+DIM IB1R(1000), IB2R(1000), FRNR(1000), FTNR(1000)
+DIM XYscrL(10), XYlimL(10), XYpltL(10), ContrL(10), LablL$(30), XYoutL(10), XYCN(4, 2)
+DIM XYscrP(10), XYlimP(10), XYpltP(10), ContrP(10), LablP$(30)
+DIM XYlimQ(10), XYscrQ(10), XYpltQ(10), ContrQ(10), LablQ$(30)
+DIM XYlimR(10), XYscrR(10), XYpltR(10), ContrR(10), LablR$(30)
+DIM XINT1(1000), YINT1(1000), XINT2(1000), YINT2(1000), PNO(1000)
+DIM PLS(20), BLS(1000), Par$(10)
+' LablF$(30) = 0  - locator will be called locally
+' LablF$(30) =-1  - selection using XYout set outside
+' LablF$(30) = N  - use ball N without search
+'              In AUT = 0 set XYlim() = XYlimL() on first call
+'              In AUT = 0 set XYlimL()= XYlim() after
+FOUND = 0
+IF VAL(LablF$(30)) <> 0 THEN
+    FOUND = VAL(LablF$(30))
+    IF FOUND = -1 THEN
+        FOUND = 0
+        LablF$(30) = "0"
+        G$ = ""
+        GOTO NOLOC
+    END IF
+END IF
+Mes$ = "Locate  particle (Esc - finish K - manual entry)   "
+REPINFO:
+IF FOUND <> 0 THEN
+    G$ = "K"
+    GOTO NOLOC
+END IF
+LOCATE 1, 6: PRINT Mes$
+CALL LOCATOR(XYlim(), XYscr(), XYout(), G$, Contr())
+NOLOC:
+Xmin = XYlim(1): Xmax = XYlim(2)
+Ymin = XYlim(3): Ymax = XYlim(4)
+Xoff = XYscr(1): Xlas = XYscr(2)
+Yoff = XYscr(3): Ylas = XYscr(4)
+Trans(1) = (Xlas - Xoff) / (Xmax - Xmin)
+Trans(3) = (Yoff - Ylas) / (Ymax - Ymin)
+Trans(2) = Xoff - Trans(1) * Xmin
+Trans(4) = Ylas - Trans(3) * Ymin
+Trans(0) = 0
+SLMIN = XYscr(2) + 2: CMIN = INT(SLMIN / 8) + 2: CMAX = CMIN + 27
+IF CMAX < XDMODE THEN
+    CMIN = CMIN + INT(0.5 * (XDMODE - CMAX))
+END IF
+PCOPY 0, 1
+VIEW (SLMIN, 0)-(XSPMODE - 1, YSPMODE - 1): CLS
+IF UCASE$(G$) = "K" THEN
+    IF FOUND <> 0 GOTO DOWORK
+    CALL CLEAN
+    LOCATE 1, 6: INPUT "Particle Number [0 - max force]"; FOUND
+    IF FOUND = 0 THEN
+        XYout(1) = 0.0: XYout(2) = 0.0
+        XYout(3) = 0.0: XYout(4) = 0.0
+        GOTO DOSEARCH
+    END IF
+    DOWORK:
+    CALL GETDISC(FOUND, Xc, Yc, Tc, ITYPE, IBTYP)
+    'CALL CLEAN: LOCATE 1, 6: PRINT Mes$;
+    CALL GETDISC(FOUND, XC1, YC1, THETA1, ITYPE1, IBTYP1)
+    GOTO BPinfo
+END IF
+IF G$ = CHR$(27) THEN
+    VIEW (SLMIN, 0)-(XSPMODE - 1, YSPMODE - 1): CLS
+    CALL CLEAN
+    EXIT SUB
+END IF
+DOSEARCH:
+IF XYout(1) = XYout(2) AND XYout(3) = XYout(4) THEN
+    Xo = XYout(1): Yo = XYout(3): IBTYP1 = -1
+    CALL SearchBALL(Xo, Yo, THETA1, N, XC1, YC1, ITYPE1, IBTYP1, FOUND)
+    IF FOUND = 0 GOTO REPINFO
+    BPinfo:
+    IABFOUND = M1 + (FOUND - 1) * NDPART
+    IAD = IABFOUND
+    CALL PLOTELS(XC1, YC1, THETA1, ITYPE1, IBTYP1, 15)
+    IF ITYPE1 < 0 THEN
+        RBAR1 = -ITYPE1
+        ECC1 = 1
+    ELSE
+        RBAR1 = R(ITYPE1)
+        ECC1 = E(ITYPE1)
+    END IF
+    SLMIN = XYscr(2) + 2: CMIN = INT(SLMIN / 8) + 2: CMAX = CMIN + 27
+    IF CMAX < XDMODE THEN
+        CMIN = CMIN + INT(0.5 * (XDMODE - CMAX))
+    END IF
+    VIEW (SLMIN, 0)-(XSPMODE - 1, YSPMODE - 1): CLS
+    VIEW (XYscr(1), XYscr(3))-(XYscr(2), XYscr(4))
+    CALL NEILIST(FOUND, PLS(), BLS(), XminL, XmaxL, YminL, YmaxL, XG, YG)
+    FOR I% = 0 TO 10
+        XYlimP(I%) = 0: XYscrP(I%) = 0: XYpltP(I%) = 0: ContrP(I%) = 0: LablP$(I%) = ""
+        XYlimQ(I%) = 0: XYscrQ(I%) = 0: XYpltQ(I%) = 0: ContrQ(I%) = 0: LablQ$(I%) = ""
+        XYlimR(I%) = 0: XYscrR(I%) = 0: XYpltR(I%) = 0: ContrR(I%) = 0: LablR$(I%) = ""
+    NEXT
+    '
+    FOR I% = 0 TO 10
+        XYlimL(I%) = 0: XYscrL(I%) = 0: XYpltL(I%) = 0: ContrL(I%) = 0: LablL$(I%) = ""
+    NEXT
+    WID = XmaxL - XminL: IF WID < (YmaxL - YminL) THEN WID = YmaxL - YminL
+    WID = 0.5 * WID * 1.05
+    XC1 = 0.5 * (XminL + XmaxL) - XG: YC1 = 0.5 * (YmaxL + YminL) - YG
+    XYlimL(1) = XC1 - WID: XYlimL(2) = XC1 + WID
+    XYlimL(3) = YC1 - WID: XYlimL(4) = YC1 + WID
+    ContrL(7) = 1
+    IF NOBMP = 1 THEN
+        IF KSEQ = 1 THEN
+            FOR I = 1 TO 10
+                XYlimT(I) = XYlimL(I)
+                XYscrT(I) = XYscrL(I)
+            NEXT
+        ELSE
+            FOR I = 1 TO 10
+                XYlimL(I) = XYlimT(I)
+                XYscrL(I) = XYscrT(I)
+            NEXT
+        END IF
+    END IF
+    '
+    WINDOW: VIEW: CLS
+    CALL MPLOT(XYlimL(), XYscrL(), XYpltL(), LablL$(), ContrL())
+    PLS(0) = -PLS(0) 'DO NOT PLOT CLUSTER HERE - NO POLYGONS SHOWN
+    CALL PlotCluster(XYlimL(), XYscrL(), PLS(), BLS(), XG, YG)
+    PLS(0) = -PLS(0) 'RESTORE
+    '
+    LOCATE 1, 6
+    PRINT USING "Part ##### Addr ###### Type ###"; FOUND; IABFOUND; AA(IAD + 9);
+    PRINT USING " Xc=####.###### Yc=####.###### Tc=###.###### "; (AA(IAD + 0) + AA(IAD + 11)); (AA(IAD + 1) + AA(IAD + 12)); (AA(IAD + 10) + AA(IAD + 13))
+    LOCATE WDMODE, 6
+    PRINT USING "Fx=#.###^^^^ Fy=#.###^^^^"; AA(IAD + 5); AA(IAD + 6);
+    PRINT USING " Vx=#.###^^^^ Vy=#.###^^^^"; AA(IAD + 2); AA(IAD + 3);
+    PRINT USING " Vv=#.###^^^^ Ff=#.###^^^^"; SQR(AA(IAD + 2) ^ 2 + AA(IAD + 3) ^ 2); SQR(AA(IAD + 5) ^ 2 + AA(IAD + 6) ^ 2);
+    NC = 0: KN = 0
+    NA = AA(20) + 2 * (47 - 1) + 1: FCAVG = AA(NA)
+    FORX(0) = AA(IAD + 5)
+    FORY(0) = AA(IAD + 6)
+    IAD = M1 + NDISK * NDPART
+    SMX = 0: SMY = 0
+    XY(1) = 0: XY(2) = 0
+    FAV = 0!
+    '
+    ContInfo:
+    '
+    IB1 = AA(IAD)
+    IF IB1 = 0 GOTO ContFin
+    IB2 = AA(IAD + 1)
+    FRN = -AA(IAD + 4)
+    IF FRN = 0 THEN GOTO NextCont:
+    FRT = -AA(IAD + 5)
+    IB = (IB1 - M1) / NDPART + 1
+    CALL IFINLIST(IB, BLS(), FND1)
+    IB = (IB2 - M1) / NDPART + 1
+    CALL IFINLIST(IB, BLS(), FND2)
+    IF FND1 <> 0 AND FND2 <> 0 THEN
+        FND = FND1
+        IF FND > FND2 THEN FND = FND2
+        IF FND = FND1 THEN
+            FND2 = 0
+        END IF
+        IF FND = FND2 THEN
+            FND1 = 0
+        END IF
+    END IF
+    IF FND1 <> 0 THEN
+        KN = KN + 1
+        IADCONT(KN) = IAD
+        NEIGH(KN) = FND1
+    END IF
+    IF FND2 <> 0 THEN
+        KN = KN + 1
+        IADCONT(KN) = IAD
+        NEIGH(KN) = FND2
+    END IF
+    NextCont:
+    IAD = IAD + NCPART
+    GOTO ContInfo
+    ContFin:
+    '
+    NA = AA(20) + 2 * (47 - 1) + 1
+    CLR = 12: FCAVG = AA(NA): THMAX = .017
+    IF FCAVG = 0 THEN FCAVG = 3000.00
+    PNTMAX = 72 * THMAX / 2.54: COE = 1!
+    '
+    KC = 0
+    FAV = 0
+    FOR K = 1 TO KN
+        IAD = IADCONT(K)
+        IB1 = AA(IAD)
+        IB2 = AA(IAD + 1)
+        IF IB2 = IABFOUND THEN
+            SWAP IB1, IB2
+        END IF
+        FRN = -AA(IAD + 4)
+        IF FRN = 0 THEN GOTO NextCont:
+        FRT = -AA(IAD + 5)
+        FRC = SQR(FRN * FRN + FRT * FRT)
+        TN = FRC / (3 * FCAVG) * THMAX: IF TN > THMAX THEN TN = THMAX
+        CALL GETDISC(-IB1, XC1, YC1, THETA1, ITYP1, IBTYP1)
+        CALL GETDISC(-IB2, XC2, YC2, THETA2, ITYP2, IBTYP2)
+        IF ITYP1 < 0 THEN
+            RBAR1 = -ITYP1
+            ECC1 = 1
+        ELSE
+            RBAR1 = SHAPES(ITYP1, 1)
+            ECC1 = SHAPES(ITYP1, 2)
+            IF IBTYP1 <> 0 THEN ECC1 = 0
+        END IF
+        IF ITYP2 < 0 THEN
+            RBAR2 = -ITYP2
+            ECC2 = 1
+        ELSE
+            RBAR2 = SHAPES(ITYP2, 1)
+            ECC2 = SHAPES(ITYP2, 2)
+            IF IBTYP2 <> 0 THEN ECC2 = 0
+        END IF
+        DX1 = 0: DX2 = 0: DT1 = 0: DY1 = 0: DY2 = 0: DT2 = 0
+        xFNA = FRN: FTA = 0: DN = 0: DT = 0
+        CALL FORCES(XC1, YC1, RBAR1, ECC1, THETA1, XC2, YC2, RBAR2, ECC2, THETA2, CVX1, CVY1, CVX2, CVY2, CNX1, CNY1, CTX1, CTY1, DX1, DY1, DT1, DX2, DY2, DT2, xFNA, FTA, DFN, DFT, FXD1, FYD1, FXD2, FYD2, DM1, DM2, DN, DT, IFLAG, STIF, XLAMBDA, BDT, AMU, XYCN())
+        IF IFLAG = 0 THEN
+            IF FRN <> 0 THEN
+                LOCATE 1, 1: PRINT IB1
+                WHILE INKEY$ = "": WEND
+                GOTO SSSX
+            END IF
+        END IF
+        '
+        IF NEIGH(K) = 1 THEN
+            KC = KC + 1
+            APPLX(KC) = XYCN(1, 1) - XG
+            APPLY(KC) = XYCN(1, 2) - YG
+            FORX(KC) = FRN * CNX1 + FRT * CTX1
+            FORY(KC) = FRN * CNY1 + FRT * CTY1
+            XINT1(KC) = XYCN(2, 1): YINT1(KN) = XYCN(2, 2)
+            XINT2(KC) = XYCN(3, 1): YINT2(KN) = XYCN(3, 2)
+            SMX = SMX + FORX(KC)
+            SMY = SMY + FORY(KC)
+            FF = SQR(FORX(KC) ^ 2 + FORY(KC) ^ 2)
+            FAV = FAV + FF
+            KC1 = KC + 1
+            XY(2 * KC1 - 1) = SMX
+            XY(2 * KC1) = SMY
+        END IF
+        '
+        CVL1 = SQR(CVX1 ^ 2 + CVY1 ^ 2)
+        CVL2 = SQR(CVX2 ^ 2 + CVY2 ^ 2)
+        CSLN1 = (CNX1 * CVX1 + CNY1 * CVY1) / CVL1
+        CSLN2 = -(CNX1 * CVX2 + CNY1 * CVY2) / CVL2
+        IF IFLAG <> 2 THEN
+            GOTO SSSX
+        END IF
+        Xcen = XYCN(1, 1): Ycen = XYCN(1, 2)
+        CVL1 = COE * CVL1 * CSLN1
+        CVL2 = COE * CVL2 * CSLN2
+        CFX = FRN * CNX1 + FRT * CTX1
+        CFY = FRN * CNY1 + FRT * CTY1
+        CFL = SQR(CFX * CFX + CFY * CFY)
+        CFX = CFX / CFL
+        CFY = CFY / CFL
+        TN = (FRC / FCAVG) * PNTMAX
+        IF TN > PNTMAX THEN TN = PNTMAX
+        XI = Xcen - CFX * CVL2: YI = Ycen - CFY * CVL2
+        XF = Xcen + CFX * CVL1: Yf = Ycen + CFY * CVL1
+        XI = XI - XG: YI = YI - YG
+        XF = XF - XG: Yf = Yf - YG
+        '        IIN% = 0: IFI% = 0
+        '        IF XI > Xmin AND XI < Xmax AND YI > Ymin AND YI < Ymax THEN IIN% = 1
+        '        IF XF > Xmin AND XF < Xmax AND Yf > Ymin AND Yf < Ymax THEN IFI% = 1
+        '        IF IFI% + IIN% > 0 THEN
+        CALL SLINE(XI, YI, XF, Yf, 12, TN, XYlimL(), XYscrL(), XYpltL(), ContrL())
+        '        END IF
+        SSSX:
+    NEXT
+END IF
+
+XSmin = XYscrL(2) + 40: YSmin = XYscrL(3) ' X AND Y offsets of the plot area
+XSwid = XSPMODE - XSmin - 10 ' Width (X) of the plot area
+YPhei = XYscrL(4) - XYscrL(3) ' Height (Y) of the plot area
+YShei = YPhei / 3 - 20 ' Height of plot area for one screen
+IF YShei < XSwid THEN
+    Dfr = XSwid - YShei
+    XSmin = XSmin + 0.5 * Dfr
+    XSwid = YShei
+END IF
+'
+' Start if small cluster window
+'
+XYlimP(8) = XSPMODE: XYlimP(9) = YSPMODE: XYlimP(10) = SPMODE
+XYscrP(1) = XSwid
+XYscrP(2) = XSwid
+XYscrP(3) = XSmin: XYscr(5) = 10
+XYscrP(4) = YSmin - 18
+LablP$(1) = "X": LablP$(2) = "Y"
+XYlimP(1) = XYlimL(1): XYlimP(2) = XYlimL(2): XYlimP(3) = XYlimL(3): XYlimP(4) = XYlimL(4)
+ContrP(7) = 1: ContrP(1) = -1:
+CALL WIN(XYlimP(), XYscrP(), XYpltP(), LablP$(), ContrP())
+CALL PlotCluster(XYlimP(), XYscrP(), PLS(), BLS(), XG, YG)
+'
+'Plot foces on small window particle
+'
+KN = KC
+FAV = FAV / KN
+WINWX = .5 * (XYlimP(2) - XYlimP(1))
+WINWY = .5 * (XYlimP(4) - XYlimP(3))
+WID = WINWX
+IF WINWY < WID THEN WID = WINWY
+KN1 = KN + 1
+XY(0) = KN1
+XY(1) = 0: XY(2) = 0
+IF KN = 0 THEN
+    XY(3) = FORX(0)
+    XY(4) = FORY(0)
+    KN = 1
+    KN1 = 2
+    FAV = SQR(XY(3) ^ 2 + XY(4) ^ 2)
+    IF FAV = 0 THEN
+        FAV = FCAVG
+    END IF
+END IF
+FXmin = 1.E+37: FXmax = -1.E+37
+FYmin = 1.E+37: FYmax = -1.E+37
+FOR I = 1 TO KN1
+    Fx = XY(2 * I - 1)
+    Fy = XY(2 * I)
+    IF Fx < FXmin THEN FXmin = Fx
+    IF Fx > FXmax THEN FXmax = Fx
+    IF Fy < FYmin THEN FYmin = Fy
+    IF Fy > FYmax THEN FYmax = Fy
+NEXT
+WIDX = FXmax - FXmin
+WIDY = FYmax - FYmin
+WID = WIDX
+WID = 0.5 * WID * 1.05
+IF WID < WIDY THEN WID = WIDY
+IF WID = 0 THEN
+    WID = 0.1 * FCAVG
+    FXmin = FCAVG
+    FXmax = FCAVG
+    FYmin = FCAVG
+    FYmax = FCAVG
+END IF
+FXC = 0.5 * (FXmin + FXmax): FYC = 0.5 * (FYmin + FYmax)
+FXmin = FXC - WID: FXmax = FXC + WID
+FYmin = FXY - WID: FYmax = FYC + WID
+FOR I = 1 TO KN
+    XF = APPLX(I): Yf = APPLY(I)
+    XI = XF - 2 * RBAR1 * FORX(I) / FAV
+    YI = Yf - 2 * RBAR1 * FORY(I) / FAV
+    CALL ARROW(XI, YI, XF, Yf, 15 - I)
+NEXT
+LOCATE WDMODE, 1: PRINT "    ";
+'
+' Force polygon
+'
+XYlimQ(8) = XSPMODE: XYlimQ(9) = YSPMODE: XYlimQ(10) = SPMODE
+XYscrQ(1) = XSwid
+XYscrQ(2) = XSwid
+XYscrQ(3) = XSmin: XYscr(5) = 10
+XYscrQ(4) = XYscrP(4) + 13
+LablQ$(1) = "FX": LablQ$(2) = "FY"
+XYlimQ(1) = FXmin: XYlimQ(2) = FXmax: XYlimQ(3) = FYmin: XYlimQ(4) = FYmax
+ContrQ(7) = 1: '  ContrQ(1) = -1
+CALL WIN(XYlimQ(), XYscrQ(), XYpltQ(), LablQ$(), ContrQ())
+FOR I = 1 TO KN
+    N1 = I: N2 = I + 1
+    IF N2 > KN1 THEN N2 = 1
+    XI = XY(2 * N1 - 1): YI = XY(2 * N1)
+    XF = XY(2 * N2 - 1): Yf = XY(2 * N2)
+    CALL ARROW(XI, YI, XF, Yf, 15 - I)
+NEXT
+IF KN = 0 THEN
+    SMX = 0: SMY = 0: FAV = 1.0
+END IF
+CMIN = INT(XSmin / 8) + 1
+LOCATE WDMODE, CMIN + 2: PRINT USING "Equilibrium ##.#####   "; SQR(SMX ^ 2 + SMY ^ 2) / FAV;
+IF VAL(LablF$(30)) = 0 THEN
+    GOTO Infonothing
+END IF
+XYlimR(8) = XSPMODE: XYlimR(9) = YSPMODE: XYlimR(10) = SPMODE
+XYscrR(1) = XSwid
+XYscrR(2) = XSwid
+XYscrR(3) = XSmin:
+XYscr(5) = 10
+XYscrR(4) = XYscrQ(4) + 13
+LablR$(1) = LablF$(1): LablR$(2) = LablF$(2): NS = 1: NA = 0
+XYlimR(1) = XYlimF(1): XYlimR(2) = XYlimF(2): XYlimR(3) = XYlimF(3): XYlimR(4) = XYlimF(4)
+'CALL WIN(XYlimR(), XYscrR(), XYpltR(), LablR$(), ContrR())
+Par$(0) = ""
+IF Xar(1, 0) <> 0 THEN
+    CALL PLOT(Xar(), Yar(), Par$(), NA, NS, XYlimR(), XYscrR(), XYpltR(), LablR$(), ContrR())
+END IF
+Infonothing:
+NRMINS = INT(XYscrL(4) / 16)
+NCMINS = CINT(XYscrL(2) / 8) - LEN(Cfile$) + LNO - 1
+LOCATE NRMINS, NCMINS: PRINT MID$(Cfile$, LNO)
+IF AUT = 1 THEN
+    WHILE INKEY$ = "": WEND
+    LASTBALL = FOUND
+    PCOPY 1, 0
+    CALL CLEAN
+    VIEW (Xoff, Yoff)-(Xlas, Ylas)
+    WINDOW (XYlim(1), XYlim(3))-(XYlim(2), XYlim(4))
+ELSE
+    CALL CHECKAUTO
+    IF AUT = 1 THEN
+        LablF$(30) = "0"
+        VIEW (XYscrL(2), 0)-(XSPMODE - 1, YSPMODE - 1): CLS
+        VIEW
+        LOCATE WDMODE, CMIN + 2: PRINT "Press any key ...";
+        WHILE INKEY$ = "": WEND
+        WINDOW: VIEW: CLS
+        GTERM$ = ""
+        CALL MPLOT(XYlim(), XYscr(), XYplt(), Labl$(), Contr())
+        CALL PlotBalls(XYlim(), XYscr())
+    END IF
+END IF
+END SUB
+
+SUB PlotCluster (XYlim(), XYscr(), PLS(), BLS(), XG, YG)
+DIM XY(2000)
+Xmin = XYlim(1): Xmax = XYlim(2)
+Ymin = XYlim(3): Ymax = XYlim(4)
+NOBD = 0
+IF PLS(0) < 0 THEN NOBD = 1
+NCL = BLS(0)
+'
+FOR N = 1 TO NCL
+    IB = BLS(N)
+    CALL GETDISC(IB, Xc, Yc, Tc, ITYPE, IBTYP)
+    IF IB > NDISK THEN
+        IF NOBD = 0 THEN GOTO SCPP
+        IADD = AA(30)
+        IF IADD <> 0 THEN
+            ISEQ = IB - NDISK
+            IF ISEQ <= IADD THEN
+                KD = NADD + (ISEQ - 1) * 7
+                IBB = AA(KD + 5)
+                CALL GETDISC(-IBB, Xc, Yc, Tc, ITYPE, IBTYP)
+            END IF
+        END IF
+    END IF
+    IF N = 1 THEN
+        CLR0 = 15
+        CLR1 = CLR0 + 1
+    ELSE
+        CLR0 = 10
+        CLR1 = CLR0 + 2
+    END IF
+    Xc = Xc - XG: Yc = Yc - YG
+    IF IBTYP = 0 THEN
+        CALL PLOTELS(Xc, Yc, Tc, ITYPE, IBTYP, CLR0)
+    ELSE
+        CALL PLOTELS(Xc, Yc, Tc, ITYPE, IBTYP, CLR1)
+    END IF
+    SCPP:
+NEXT
+NPL = PLS(0)
+CLR0 = 7
+FOR N = 1 TO NPL
+    IP = PLS(N)
+    CALL GETPOLY(IP, XY())
+    CALL SHIFTPOLY(XY(), XG, YG)
+    CALL PLOTpoly(XY(), CLR0)
+NEXT
+CALL BORDER(XYlim(), XYscr())
+END SUB
+
+SUB IFINLIST (IB, BLS(), FND)
+NB = BLS(0)
+FND = 0
+FOR N = 1 TO NB
+    IF BLS(N) = IB THEN
+        FND = N
+        EXIT FOR
+    END IF
+NEXT
+END SUB
+
+SUB DECODEG (GG$, VVL)
+N1 = INSTR(1, GG$, "?")
+N2 = INSTR(1, GG$, "!")
+IF N1 = 0 AND N2 = 0 THEN
+    VVL = 0
+    EXIT SUB
+END IF
+G$ = MID$(GG$, 2)
+N = INSTR(1, G$, "+")
+IF N <> 0 THEN
+    K1$ = (MID$(G$, N - 1, 1))
+    K2$ = (MID$(G$, N + 1, 1))
+    IF VAL(K1$) = 6 THEN
+        VVL = VAL(K2$)
+        IF VVL = 0 THEN
+            VVL = ASC(K2$) - 55
+        END IF
+        EXIT SUB
+    END IF
+    IF VAL(K2$) = 6 THEN
+        VVL = VAL(K1$)
+        IF VVL = 0 THEN
+            VVL = ASC(K2$) - 55
+        END IF
+        EXIT SUB
+    END IF
+END IF
+END SUB
+
+SUB SHIFTPOLY (XY(), XG, YG)
+KS = XY(0)
+FOR K = 1 TO KS
+    XY(2 * K - 1) = XY(2 * K - 1) - XG
+    XY(2 * K) = XY(2 * K) - YG
+NEXT
 END SUB
